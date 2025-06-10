@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  db:
+    image: ankane/pgvector
+    container_name: postgres_with_pgvector
+    restart: always
+    environment:
+      POSTGRES_USER: rag_cookbook_user
+      POSTGRES_PASSWORD: rag_cookbook_user_pw
+      POSTGRES_DB: rag_cookbook
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

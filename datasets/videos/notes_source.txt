@@ -1,0 +1,3 @@
+link: https://www.youtube.com/watch?v=ua-CiDNNj30&t=19981s
+
+license: All of datalab.cc’s videos are free and open-source thanks to a Creative Common Attribution (CC-BY) license. 
