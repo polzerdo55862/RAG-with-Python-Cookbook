@@ -1,0 +1,18 @@
+Collecting nbformat
+  Using cached nbformat-5.10.4-py3-none-any.whl.metadata (3.6 kB)
+Collecting fastjsonschema>=2.15 (from nbformat)
+  Using cached fastjsonschema-2.21.1-py3-none-any.whl.metadata (2.2 kB)
+Requirement already satisfied: jsonschema>=2.6 in c:\users\z004j58u\repos\others\rag-oreily-book\.venv_ch11_building_rag_apps\lib\site-packages (from nbformat) (4.24.0)
+Requirement already satisfied: jupyter-core!=5.0.*,>=4.12 in c:\users\z004j58u\repos\others\rag-oreily-book\.venv_ch11_building_rag_apps\lib\site-packages (from nbformat) (5.8.1)
+Requirement already satisfied: traitlets>=5.1 in c:\users\z004j58u\repos\others\rag-oreily-book\.venv_ch11_building_rag_apps\lib\site-packages (from nbformat) (5.14.3)
+Requirement already satisfied: attrs>=22.2.0 in c:\users\z004j58u\repos\others\rag-oreily-book\.venv_ch11_building_rag_apps\lib\site-packages (from jsonschema>=2.6->nbformat) (25.3.0)
+Requirement already satisfied: jsonschema-specifications>=2023.03.6 in c:\users\z004j58u\repos\others\rag-oreily-book\.venv_ch11_building_rag_apps\lib\site-packages (from jsonschema>=2.6->nbformat) (2025.4.1)
+Requirement already satisfied: referencing>=0.28.4 in c:\users\z004j58u\repos\others\rag-oreily-book\.venv_ch11_building_rag_apps\lib\site-packages (from jsonschema>=2.6->nbformat) (0.36.2)
+Requirement already satisfied: rpds-py>=0.7.1 in c:\users\z004j58u\repos\others\rag-oreily-book\.venv_ch11_building_rag_apps\lib\site-packages (from jsonschema>=2.6->nbformat) (0.25.1)
+Requirement already satisfied: platformdirs>=2.5 in c:\users\z004j58u\repos\others\rag-oreily-book\.venv_ch11_building_rag_apps\lib\site-packages (from jupyter-core!=5.0.*,>=4.12->nbformat) (4.3.8)
+Requirement already satisfied: pywin32>=300 in c:\users\z004j58u\repos\others\rag-oreily-book\.venv_ch11_building_rag_apps\lib\site-packages (from jupyter-core!=5.0.*,>=4.12->nbformat) (310)
+Using cached nbformat-5.10.4-py3-none-any.whl (78 kB)
+Using cached fastjsonschema-2.21.1-py3-none-any.whl (23 kB)
+Installing collected packages: fastjsonschema, nbformat
+   ---------------------------------------- 0/2 [fastjsonschema]   -------------------- ------------------- 1/2 [nbformat]   -------------------- ------------------- 1/2 [nbformat]   -------------------- ------------------- 1/2 [nbformat]   -------------------- ------------------- 1/2 [nbformat]   ---------------------------------------- 2/2 [nbformat]
+Successfully installed fastjsonschema-2.21.1 nbformat-5.10.4

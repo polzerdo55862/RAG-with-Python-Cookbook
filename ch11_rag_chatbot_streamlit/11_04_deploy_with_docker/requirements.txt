@@ -1,0 +1,9 @@
+FROM python:3.9-slim-buster
+
+streamlit
+pandas
+numpy
+requests
+openai
+streamlit-chat
+python-dotenv
