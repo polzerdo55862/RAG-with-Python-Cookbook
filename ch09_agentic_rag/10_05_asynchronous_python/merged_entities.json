@@ -1,0 +1,90 @@
+To merge the provided JSON lists into a single JSON object, you need to integrate all the data from each list into one cohesive structure. Here is the merged JSON object:
+
+```json
+{
+  "company": {
+    "name": "TechPro Solutions",
+    "address": "123 Technology Boulevard, San Francisco, CA 94105",
+    "phone": "(555) 123-4567",
+    "email": "sales@techpro.com"
+  },
+  "invoice": {
+    "number": "INV-2024-0847",
+    "date": "September 29, 2025",
+    "due_date": "October 29, 2025"
+  },
+  "bill_to": {
+    "name": "Global Enterprises Inc.",
+    "address": "456 Business Park Drive, New York, NY 10001",
+    "contact": "John Anderson",
+    "phone": "(555) 987-6543"
+  },
+  "ship_to": {
+    "name": "Global Enterprises Inc.",
+    "department": "IT Department - 3rd Floor",
+    "address": "456 Business Park Drive, New York, NY 10001",
+    "contact": "Sarah Mitchell"
+  },
+  "items": [
+    {
+      "description": "Dell XPS 15 9530",
+      "details": "Intel Core i7-13700H, 16GB RAM, 512GB SSD, 15.6\" FHD+, NVIDIA RTX 4050",
+      "quantity": 5,
+      "unit_price": 1899.00,
+      "amount": 9495.00
+    },
+    {
+      "description": "Apple MacBook Pro 16\"",
+      "details": "M3 Pro chip, 18GB Unified Memory, 512GB SSD, 16.2\" Liquid Retina XDR",
+      "quantity": 3,
+      "unit_price": 2499.00,
+      "amount": 7497.00
+    },
+    {
+      "description": "Lenovo ThinkPad X1 Carbon Gen 11",
+      "details": "Intel Core i7-1365U, 16GB RAM, 512GB SSD, 14\" WUXGA, Windows 11 Pro",
+      "quantity": 8,
+      "unit_price": 1649.00,
+      "amount": 13192.00
+    },
+    {
+      "description": "ASUS ROG Zephyrus G14",
+      "quantity": 6,
+      "unit_price": 1799.00,
+      "amount": 10794.00
+    },
+    {
+      "description": "Microsoft Surface Laptop 5",
+      "quantity": 7,
+      "unit_price": 1499.00,
+      "amount": 10493.00
+    },
+    {
+      "description": "Acer Swift 5",
+      "quantity": 10,
+      "unit_price": 1099.00,
+      "amount": 10990.00
+    },
+    {
+      "description": "Razer Blade 15",
+      "quantity": 3,
+      "unit_price": 2799.00,
+      "amount": 8397.00
+    },
+    {
+      "description": "LG Gram 17",
+      "quantity": 4,
+      "unit_price": 1899.00,
+      "amount": 7596.00
+    },
+    {
+      "description": "Samsung Galaxy Book3 Pro",
+      "quantity": 5,
+      "unit_price": 1449.00,
+      "amount": 7245.00
+    }
+  ]
+}
+```
+
+This merged JSON combines all the information from the two separate lists into a single, comprehensive invoice document. The `"items"` array includes all items listed in each list, ensuring none are omitted.

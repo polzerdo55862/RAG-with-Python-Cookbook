@@ -1,0 +1,45 @@
+```json
+{
+  "invoice_number": "INV-2024-0847",
+  "date": "September 29, 2025",
+  "customer": "Global Enterprises Inc.",
+  "items": [
+    {
+      "description": "ASUS ROG Zephyrus G14, AMD Ryzen 9 7940HS, 32GB RAM, 1TB SSD, 14\" QHD+, NVIDIA RTX 4060",
+      "quantity": 6,
+      "unit_price": "$1,799.00",
+      "amount": "$10,794.00"
+    },
+    {
+      "description": "Microsoft Surface Laptop 5, Intel Core i7-1255U, 16GB RAM, 512GB SSD, 13.5\" PixelSense Touch",
+      "quantity": 7,
+      "unit_price": "$1,499.00",
+      "amount": "$10,493.00"
+    },
+    {
+      "description": "Acer Swift 5, Intel Core i5-1240P, 16GB RAM, 512GB SSD, 14\" FHD IPS, Ultra-lightweight",
+      "quantity": 10,
+      "unit_price": "$1,099.00",
+      "amount": "$10,990.00"
+    },
+    {
+      "description": "Razer Blade 15, Intel Core i9-13950HX, 32GB RAM, 1TB SSD, 15.6\" QHD 240Hz, RTX 4070",
+      "quantity": 3,
+      "unit_price": "$2,799.00",
+      "amount": "$8,397.00"
+    },
+    {
+      "description": "LG Gram 17, Intel Core i7-1360P, 16GB RAM, 1TB SSD, 17\" WQXGA, Ultra-light 2.98 lbs",
+      "quantity": 4,
+      "unit_price": "$1,899.00",
+      "amount": "$7,596.00"
+    },
+    {
+      "description": "Samsung Galaxy Book3 Pro, Intel Core i7-1360P, 16GB RAM, 512GB SSD, 14\" AMOLED 3K, S Pen included",
+      "quantity": 5,
+      "unit_price": "$1,449.00",
+      "amount": "$7,245.00"
+    }
+  ]
+}
+```

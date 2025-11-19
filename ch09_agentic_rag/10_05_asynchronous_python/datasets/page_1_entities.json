@@ -1,0 +1,57 @@
+```json
+{
+  "company_info": {
+    "name": "TechPro Solutions",
+    "address": "123 Technology Boulevard, San Francisco, CA 94105",
+    "phone": "(555) 123-4567",
+    "email": "sales@techpro.com"
+  },
+  "invoice_info": {
+    "invoice_number": "INV-2024-0847",
+    "date": "September 29, 2025",
+    "due_date": "October 29, 2025"
+  },
+  "bill_to": {
+    "company_name": "Global Enterprises Inc.",
+    "address": "456 Business Park Drive, New York, NY 10001",
+    "attention": "John Anderson",
+    "phone": "(555) 987-6543"
+  },
+  "ship_to": {
+    "company_name": "Global Enterprises Inc.",
+    "department": "IT Department - 3rd Floor",
+    "address": "456 Business Park Drive, New York, NY 10001",
+    "contact": "Sarah Mitchell"
+  },
+  "items": [
+    {
+      "description": "Dell XPS 15 9530",
+      "details": "Intel Core i7-13700H, 16GB RAM, 512GB SSD, 15.6\" FHD+, NVIDIA RTX 4050",
+      "quantity": 5,
+      "unit_price": "$1,899.00",
+      "amount": "$9,495.00"
+    },
+    {
+      "description": "Apple MacBook Pro 16\"",
+      "details": "M3 Pro chip, 18GB Unified Memory, 512GB SSD, 16.2\" Liquid Retina XDR",
+      "quantity": 3,
+      "unit_price": "$2,499.00",
+      "amount": "$7,497.00"
+    },
+    {
+      "description": "Lenovo ThinkPad X1 Carbon Gen 11",
+      "details": "Intel Core i7-1365U, 16GB RAM, 512GB SSD, 14\" WUXGA, Windows 11 Pro",
+      "quantity": 8,
+      "unit_price": "$1,649.00",
+      "amount": "$13,192.00"
+    },
+    {
+      "description": "HP Spectre x360 14",
+      "details": "Intel Core i7-1355U, 16GB RAM, 1TB SSD, 13.5\" 3K2K OLED Touch, 2-in-1",
+      "quantity": 4,
+      "unit_price": "$1,749.00",
+      "amount": "$6,996.00"
+    }
+  ]
+}
+```

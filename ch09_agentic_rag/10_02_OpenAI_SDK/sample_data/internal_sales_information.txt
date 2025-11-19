@@ -1,0 +1,188 @@
+## Internal Email: Pricing Information
+
+**From:** pricing@techcorp-laptops.com  
+**To:** sales-team@techcorp-laptops.com  
+**Subject:** Q3 2025 - Updated Cost Structure and UVP Pricing  
+**Date:** July 15, 2025  
+**CONFIDENTIAL - INTERNAL USE ONLY**
+
+Dear Sales Team,
+
+Please find below the updated manufacturing costs and recommended retail prices (UVP) for our current laptop lineup, effective August 1, 2025:
+
+### TechCorp ProBook Series
+
+**ProBook 15" (i5, 8GB RAM, 256GB SSD)**
+- Manufacturing Cost: €420
+- UVP (Recommended Retail): €899
+- Minimum Sales Price: €650
+- Gross Margin at UVP: 53%
+
+**ProBook 15" (i7, 16GB RAM, 512GB SSD)**  
+- Manufacturing Cost: €580
+- UVP (Recommended Retail): €1,299
+- Minimum Sales Price: €850
+- Gross Margin at UVP: 55%
+
+**ProBook 17" (i7, 32GB RAM, 1TB SSD)**
+- Manufacturing Cost: €750
+- UVP (Recommended Retail): €1,799
+- Minimum Sales Price: €1,100
+- Gross Margin at UVP: 58%
+
+### TechCorp UltraBook Series
+
+**UltraBook 13" (i5, 16GB RAM, 512GB SSD)**
+- Manufacturing Cost: €520
+- UVP (Recommended Retail): €1,199
+- Minimum Sales Price: €780
+- Gross Margin at UVP: 57%
+
+**UltraBook 13" (i7, 16GB RAM, 1TB SSD)**
+- Manufacturing Cost: €680
+- UVP (Recommended Retail): €1,599
+- Minimum Sales Price: €950
+- Gross Margin at UVP: 57%
+
+### Important Notes:
+- Minimum sales prices include all costs and minimum acceptable margin
+- For orders >10 units, additional 2-5% volume discounts may be approved
+- For orders >25 units, contact regional manager for special pricing
+- Extended warranty and service packages have 70% margin
+
+**Remember:** Always aim for UVP when possible, but use minimum pricing as your negotiation floor. Any pricing below minimum requires VP approval.
+
+Best regards,  
+TechCorp Pricing Team
+
+---
+
+## Internal Email: Competitor Pricing Intelligence
+
+**From:** market.intel@techcorp-laptops.com  
+**To:** sales-team@techcorp-laptops.com  
+**Subject:** Competitor Pricing Update - Q3 2025  
+**Date:** July 28, 2025  
+**CONFIDENTIAL - INTERNAL USE ONLY**
+
+Dear Sales Team,
+
+Our latest market research indicates that several competitors are offering similar business laptops with i7, 16GB RAM, and 512GB SSD configurations at prices ranging from €1,050 to €1,100 per unit for bulk orders (10+ units). Notably, MegaLaptops GmbH is currently running a promotion at €1,025 per unit for orders of 15 or more.
+
+Please use this information to inform your negotiations, but remember not to disclose competitor pricing sources directly to customers.
+
+Best regards,  
+Market Intelligence Team
+
+---
+
+## Internal Email: End-of-Quarter Sales Incentives
+
+**From:** sales.management@techcorp-laptops.com  
+**To:** sales-team@techcorp-laptops.com  
+**Subject:** Q3 2025 - End-of-Quarter Incentives  
+**Date:** August 1, 2025  
+**CONFIDENTIAL - INTERNAL USE ONLY**
+
+Dear Team,
+
+To help close deals before the end of Q3, we are authorizing an additional 2% discretionary discount on all ProBook and UltraBook series for orders of 10 units or more. This is in addition to any standard volume discounts.
+
+Please note:
+- The extra discount can be applied at your discretion to close deals, but do not advertise it proactively.
+- All deals below minimum sales price still require VP approval.
+
+Let's finish the quarter strong!
+
+Best,  
+Sales Management Team
+
+---
+
+## Internal Email: Customer Satisfaction Insights
+
+**From:** support@techcorp-laptops.com  
+**To:** sales-team@techcorp-laptops.com  
+**Subject:** Key Selling Points from Recent Customer Feedback  
+**Date:** July 30, 2025  
+**CONFIDENTIAL - INTERNAL USE ONLY**
+
+Dear Sales Team,
+
+Recent customer surveys highlight the following as top reasons clients choose TechCorp laptops:
+- Fast and reliable customer support (average response time: 2 hours)
+- 3-year standard business warranty included at no extra cost
+- High durability and low failure rates compared to competitors
+- Free next-business-day shipping for orders over 10 units
+
+Emphasizing these points during negotiations can help justify our pricing and close deals.
+
+Best regards,  
+Customer Support Team
+
+---
+
+## Internal Email: Extended Payment Terms
+
+**From:** finance@techcorp-laptops.com  
+**To:** sales-team@techcorp-laptops.com  
+**Subject:** Flexible Payment Options for Q3 Bulk Orders  
+**Date:** July 29, 2025  
+**CONFIDENTIAL - INTERNAL USE ONLY**
+
+Dear Sales Team,
+
+For Q3, we are piloting extended payment terms for business customers:
+- Standard: 30 days net
+- For orders over €10,000: up to 60 days net, subject to credit approval
+
+If a customer requests longer payment terms, please coordinate with the finance team for approval. This flexibility may help close larger deals.
+
+Best,  
+Finance Department
+
+---
+
+## Internal Email: Upsell Opportunities
+
+**From:** product@techcorp-laptops.com  
+**To:** sales-team@techcorp-laptops.com  
+**Subject:** New Accessories and Service Packages for Upsell  
+**Date:** July 25, 2025  
+**CONFIDENTIAL - INTERNAL USE ONLY**
+
+Dear Sales Team,
+
+Don’t forget to offer the following high-margin add-ons with every laptop order:
+- ProBook Docking Station (€129, margin: 60%)
+- Extended accidental damage protection (adds €49 per unit, margin: 75%)
+- Premium onboarding and setup service (€299 per company, margin: 80%)
+
+These options can increase deal value and customer satisfaction.
+
+Best regards,  
+Product Team
+
+---
+
+## Email 3: Customer Counter-Offer
+
+**From:** michael.weber@email.com  
+**To:** sarah.mueller@techcorp-laptops.com  
+**Subject:** RE: Inquiry about Business Laptops - Bulk Purchase  
+**Date:** August 2, 2025
+
+Dear Ms. Müller,
+
+Thank you for your quick response. I appreciate the 12% discount offer, but €1,143 per laptop is still outside our approved budget range.
+
+I've been comparing options from your competitors, and I can get similar specs for around €1,000 per unit elsewhere. However, I prefer to work with TechCorp due to your reputation for reliability and service.
+
+Would it be possible to meet somewhere in the middle? I could potentially stretch our budget to €1,050 per laptop if you can match that price. This would still represent a good deal for you at €15,750 total.
+
+Also, would there be additional savings if we agreed to a longer payment term or if we committed to future purchases?
+
+Looking forward to your response.
+
+Best regards,  
+Michael Weber

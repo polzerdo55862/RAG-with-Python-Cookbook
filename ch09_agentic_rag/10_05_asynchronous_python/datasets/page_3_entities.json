@@ -1,0 +1,44 @@
+```json
+{
+  "invoice_number": "INV-2024-0847",
+  "date": "September 29, 2025",
+  "customer": "Global Enterprises Inc.",
+  "items": [
+    {
+      "description": "MSI Creator Z16",
+      "details": "Intel Core i9-13900H, 32GB RAM, 1TB SSD, 16\" QHD+ Touch, RTX 4060",
+      "quantity": 2,
+      "unit_price": 2299.00,
+      "amount": 4598.00
+    },
+    {
+      "description": "Extended Warranty (3 Years)",
+      "details": "Comprehensive coverage for all laptop models purchased",
+      "quantity": 57,
+      "unit_price": 249.00,
+      "amount": 14193.00
+    },
+    {
+      "description": "Setup & Configuration Service",
+      "details": "Professional installation, software setup, and user training",
+      "quantity": 1,
+      "unit_price": 2850.00,
+      "amount": 2850.00
+    }
+  ],
+  "subtotal": 114336.00,
+  "tax": 9718.56,
+  "shipping_handling": 450.00,
+  "total_due": 124504.56,
+  "payment_terms": {
+    "terms": "Net 30 days. Payment is due within 30 days of invoice date.",
+    "methods": "Wire transfer, ACH, or check payable to TechPro Solutions.",
+    "delivery": "Estimated delivery 5-7 business days from order confirmation. All items will be shipped via FedEx Express with signature required.",
+    "returns": "30-day return policy applies. Items must be in original condition and packaging."
+  },
+  "contact": {
+    "email": "accounts@techpro.com",
+    "phone": "(555) 123-4567"
+  }
+}
+```

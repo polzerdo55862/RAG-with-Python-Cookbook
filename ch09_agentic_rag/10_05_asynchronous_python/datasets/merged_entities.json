@@ -1,0 +1,132 @@
+To merge these JSON objects from a single invoice into one comprehensive JSON object, we need to consolidate all the elements, ensuring there is no duplication of information, especially in section headers and entries such as `invoice_number`, `date`, and `customer`. We also need to aggregate all the items from the separate lists within each object. Here's the merged JSON object:
+
+```json
+{
+  "company_info": {
+    "name": "TechPro Solutions",
+    "address": "123 Technology Boulevard, San Francisco, CA 94105",
+    "phone": "(555) 123-4567",
+    "email": "sales@techpro.com"
+  },
+  "invoice_info": {
+    "invoice_number": "INV-2024-0847",
+    "date": "September 29, 2025",
+    "due_date": "October 29, 2025"
+  },
+  "bill_to": {
+    "company_name": "Global Enterprises Inc.",
+    "address": "456 Business Park Drive, New York, NY 10001",
+    "attention": "John Anderson",
+    "phone": "(555) 987-6543"
+  },
+  "ship_to": {
+    "company_name": "Global Enterprises Inc.",
+    "department": "IT Department - 3rd Floor",
+    "address": "456 Business Park Drive, New York, NY 10001",
+    "contact": "Sarah Mitchell"
+  },
+  "items": [
+    {
+      "description": "Dell XPS 15 9530",
+      "details": "Intel Core i7-13700H, 16GB RAM, 512GB SSD, 15.6\" FHD+, NVIDIA RTX 4050",
+      "quantity": 5,
+      "unit_price": "$1,899.00",
+      "amount": "$9,495.00"
+    },
+    {
+      "description": "Apple MacBook Pro 16\"",
+      "details": "M3 Pro chip, 18GB Unified Memory, 512GB SSD, 16.2\" Liquid Retina XDR",
+      "quantity": 3,
+      "unit_price": "$2,499.00",
+      "amount": "$7,497.00"
+    },
+    {
+      "description": "Lenovo ThinkPad X1 Carbon Gen 11",
+      "details": "Intel Core i7-1365U, 16GB RAM, 512GB SSD, 14\" WUXGA, Windows 11 Pro",
+      "quantity": 8,
+      "unit_price": "$1,649.00",
+      "amount": "$13,192.00"
+    },
+    {
+      "description": "HP Spectre x360 14",
+      "details": "Intel Core i7-1355U, 16GB RAM, 1TB SSD, 13.5\" 3K2K OLED Touch, 2-in-1",
+      "quantity": 4,
+      "unit_price": "$1,749.00",
+      "amount": "$6,996.00"
+    },
+    {
+      "description": "ASUS ROG Zephyrus G14, AMD Ryzen 9 7940HS, 32GB RAM, 1TB SSD, 14\" QHD+, NVIDIA RTX 4060",
+      "quantity": 6,
+      "unit_price": "$1,799.00",
+      "amount": "$10,794.00"
+    },
+    {
+      "description": "Microsoft Surface Laptop 5, Intel Core i7-1255U, 16GB RAM, 512GB SSD, 13.5\" PixelSense Touch",
+      "quantity": 7,
+      "unit_price": "$1,499.00",
+      "amount": "$10,493.00"
+    },
+    {
+      "description": "Acer Swift 5, Intel Core i5-1240P, 16GB RAM, 512GB SSD, 14\" FHD IPS, Ultra-lightweight",
+      "quantity": 10,
+      "unit_price": "$1,099.00",
+      "amount": "$10,990.00"
+    },
+    {
+      "description": "Razer Blade 15, Intel Core i9-13950HX, 32GB RAM, 1TB SSD, 15.6\" QHD 240Hz, RTX 4070",
+      "quantity": 3,
+      "unit_price": "$2,799.00",
+      "amount": "$8,397.00"
+    },
+    {
+      "description": "LG Gram 17, Intel Core i7-1360P, 16GB RAM, 1TB SSD, 17\" WQXGA, Ultra-light 2.98 lbs",
+      "quantity": 4,
+      "unit_price": "$1,899.00",
+      "amount": "$7,596.00"
+    },
+    {
+      "description": "Samsung Galaxy Book3 Pro, Intel Core i7-1360P, 16GB RAM, 512GB SSD, 14\" AMOLED 3K, S Pen included",
+      "quantity": 5,
+      "unit_price": "$1,449.00",
+      "amount": "$7,245.00"
+    },
+    {
+      "description": "MSI Creator Z16",
+      "details": "Intel Core i9-13900H, 32GB RAM, 1TB SSD, 16\" QHD+ Touch, RTX 4060",
+      "quantity": 2,
+      "unit_price": 2299.00,
+      "amount": 4598.00
+    },
+    {
+      "description": "Extended Warranty (3 Years)",
+      "details": "Comprehensive coverage for all laptop models purchased",
+      "quantity": 57,
+      "unit_price": 249.00,
+      "amount": 14193.00
+    },
+    {
+      "description": "Setup & Configuration Service",
+      "details": "Professional installation, software setup, and user training",
+      "quantity": 1,
+      "unit_price": 2850.00,
+      "amount": 2850.00
+    }
+  ],
+  "subtotal": 114336.00,
+  "tax": 9718.56,
+  "shipping_handling": 450.00,
+  "total_due": 124504.56,
+  "payment_terms": {
+    "terms": "Net 30 days. Payment is due within 30 days of invoice date.",
+    "methods": "Wire transfer, ACH, or check payable to TechPro Solutions.",
+    "delivery": "Estimated delivery 5-7 business days from order confirmation. All items will be shipped via FedEx Express with signature required.",
+    "returns": "30-day return policy applies. Items must be in original condition and packaging."
+  },
+  "contact": {
+    "email": "accounts@techpro.com",
+    "phone": "(555) 123-4567"
+  }
+}
+```
+
+This merged JSON object consolidates all the information while retaining any unique fields. It also ensures a uniform format where applicable.
