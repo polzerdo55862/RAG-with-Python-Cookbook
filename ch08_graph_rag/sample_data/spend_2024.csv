@@ -1,0 +1,5 @@
+supplier_id,spend_eur,spend_category
+SUP1,1200000,Cloud Compute
+SUP2,800000,Cloud Storage
+SUP3,450000,VM Hosting
+SUP4,300000,Legacy Compute

@@ -1,0 +1,5 @@
+address_id,street,city,postal_code,country
+ADDR1,Alexanderstrasse 52,Berlin,10179,Germany
+ADDR2,Keizersgracht 220,Amsterdam,1016DX,Netherlands
+ADDR3,Limmatstrasse 88,Zürich,8005,Switzerland
+ADDR4,Rue Lafayette 142,Paris,75010,France

@@ -1,0 +1,5 @@
+sla_id,supplier_id,title,service_name,effective_date,governing_law
+SLA1,SUP1,Cloud Compute SLA,Compute v1.4,2024-01-01,Germany
+SLA2,SUP2,Cloud Storage SLA,Storage v2.0,2023-07-01,Netherlands
+SLA3,SUP3,VM Hosting SLA,VMHost v3.2,2023-09-15,Switzerland
+SLA4,SUP4,Legacy Compute SLA,Compute Classic v1,N/A,France

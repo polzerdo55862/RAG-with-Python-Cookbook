@@ -1,0 +1,5 @@
+supplier_id,name,country,address_id,industry
+SUP1,Alpha Cloud GmbH,Germany,ADDR1,Cloud Services
+SUP2,DataStore BV,Netherlands,ADDR2,Data Storage
+SUP3,ComputeNow AG,Switzerland,ADDR3,IT Infrastructure
+SUP4,EuroCompute S.A.,France,ADDR4,Cloud Services
