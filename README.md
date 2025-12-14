@@ -27,6 +27,8 @@ Explore the folders in this repository to find code examples and notebooks for e
 
 ### Chapter 3: Loading Data
 
+Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch03_loading_data/loading_data_to_RAG.ipynb
+
 - 3.1 Loading Word Files in Python
 - 3.2 Loading PDF Files
 - 3.3 Loading and Handling Tabular Data from Excel Files
