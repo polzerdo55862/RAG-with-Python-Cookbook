@@ -43,6 +43,8 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 
 ### Chapter 4: Data Preparation
 
+Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch04_data_preparation_chunking/chunking_data.ipynb
+
 - 4.1 Adding Metadata to Enable Metadata Filtering
 - 4.2 Enhancing Data Quality by Replacing Abbreviations and Technical Terms
 - 4.3 Improving Search Accuracy by Embedding Hypothetical Questions
