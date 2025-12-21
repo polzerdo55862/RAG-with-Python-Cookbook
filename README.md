@@ -56,7 +56,7 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 
 ### Chapter 5: Embeddings
 
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch04_data_preparation_chunking/chunking_data.ipynb
+Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch05_text_embedding/text_embeddings.ipynb
 
 - 5.1 Mapping Linguistic Meaning of Text Chunks to Numerical Representation
 - 5.2 Visualizing Semantic Relationships by Reducing Dimensionality of Embedding Vectors
@@ -68,7 +68,7 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 
 ### Chapter 6: Similarity Search
 
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch05_text_embedding/text_embeddings.ipynb
+Colab link:
 
 - 6.1 Choosing the Right Vector Database
 - 6.2 Storing and Searching Embeddings Using FAISS
@@ -79,6 +79,8 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 - 6.7 Combining Keyword and Similarity Search for Better Results (Hybrid Search) with PostgreSQL
 
 ### Chapter 7: Retrieval
+
+Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch07_retrieval/retrieval_techniques.ipynb
 
 - 7.1 Optimizing Query Results Using Metadata Filtering in PostgreSQL
 - 7.2 Enhancing Search Results by Extending the Original Query with Generated Pseudo-Documents
