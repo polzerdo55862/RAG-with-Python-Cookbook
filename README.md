@@ -56,6 +56,8 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 
 ### Chapter 5: Embeddings
 
+Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch04_data_preparation_chunking/chunking_data.ipynb
+
 - 5.1 Mapping Linguistic Meaning of Text Chunks to Numerical Representation
 - 5.2 Visualizing Semantic Relationships by Reducing Dimensionality of Embedding Vectors
 - 5.3 Calculating Distance Between Embeddings
@@ -65,6 +67,8 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 - 5.7 Improving Search Results Using a Hybrid Search Approach
 
 ### Chapter 6: Similarity Search
+
+Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch05_text_embedding/text_embeddings.ipynb
 
 - 6.1 Choosing the Right Vector Database
 - 6.2 Storing and Searching Embeddings Using FAISS
