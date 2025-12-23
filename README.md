@@ -1,5 +1,19 @@
 # RAG-with-Python-Cookbook
 
+| Chapter | Title                             | Colab Notebook Link                                                                                                                                      |
+| ------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1       | RAG Setup                         | -                                                                                                                                                        |
+| 2       | Generation and Prompt Engineering | -                                                                                                                                                        |
+| 3       | Loading Data                      | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch03_loading_data/loading_data_to_RAG.ipynb                    |
+| 4       | Data Preparation                  | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch04_data_preparation_chunking_data/chunking_data.ipynb        |
+| 5       | Embeddings                        | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch05_text_embedding/text_embeddings.ipynb                      |
+| 6       | Similarity Search                 | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch06_similarity_search_vector_databases/vector_databases.ipynb |
+| 7       | Retrieval                         | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch07_retrieval/retrieval_techniques.ipynb                      |
+| 8       | Graph RAG                         | -                                                                                                                                                        |
+| 9       | Agentic RAG                       | -                                                                                                                                                        |
+| 10      | RAG Evaluation                    | -                                                                                                                                                        |
+| 11      | RAG Chatbot (Streamlit)           | -                                                                                                                                                        |
+
 This repository contains code snippets and practical recipes featured in the O'Reilly book **"RAG with Python Cookbook"**. The book is a comprehensive guide to Retrieval-Augmented Generation (RAG) systems, providing hands-on solutions for building, evaluating, and deploying RAG applications using Python. Each chapter focuses on a specific aspect of RAG, with ready-to-use code and explanations to help you implement state-of-the-art techniques in your own projects.
 
 ## What is this book about?
