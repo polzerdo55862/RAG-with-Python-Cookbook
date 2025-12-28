@@ -2,7 +2,7 @@
 
 | Chapter | Title                             | Colab Notebook Link                                                                                                                                      |
 | ------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1       | RAG Setup                         | -                                                                                                                                                        |
+| 1       | RAG Setup                         | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch01_RAG_intro/rag_basics.ipynb -                              |
 | 2       | Generation and Prompt Engineering | -                                                                                                                                                        |
 | 3       | Loading Data                      | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch03_loading_data/loading_data_to_RAG.ipynb                    |
 | 4       | Data Preparation                  | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch04_data_preparation_chunking_data/chunking_data.ipynb        |
