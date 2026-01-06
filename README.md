@@ -1,26 +1,24 @@
 # RAG-with-Python-Cookbook
 
-| Chapter | Title                             | Colab Notebook Link                                                                                                                                      |
-| Chapter | Title                             | Colab Notebook Link                                                                                                                                      |
+| Chapter | Title | Colab Notebook Link |
+| Chapter | Title | Colab Notebook Link |
 | ------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1       | RAG Setup                         | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch01_RAG_intro/rag_basics.ipynb                                |
-| 2       | Generation and Prompt Engineering | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch02_generation/generation.ipynb                               |
-| 3       | Loading Data                      | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch03_loading_data/loading_data_to_RAG.ipynb                    |
-| 4       | Data Preparation                  | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch04_data_preparation_chunking_data/chunking_data.ipynb        |
-| 5       | Embeddings                        | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch05_text_embedding/text_embeddings.ipynb                      |
-| 6       | Similarity Search                 | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch06_similarity_search_vector_databases/vector_databases.ipynb |
-| 7       | Retrieval                         | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch07_retrieval/retrieval_techniques.ipynb                      |
-| **8**   | **Graph RAG**                     |                                                                                                                                                          |
-| 8.1     | ↳ Basic SLA Graph                 | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch08_graph_rag/recipe01_basic_sla_graph.ipynb                  |
-| 8.2     | ↳ Enrich Company Data             | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch08_graph_rag/recipe02_enrich_company_data.ipynb              |
-| 8.3     | ↳ Cypher Queries                  | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch08_graph_rag/recipe03_cypher_queries.ipynb                   |
-| 8.4     | ↳ Embeddings Vector Search        | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch08_graph_rag/recipe04_embeddings_vector_search.ipynb         |
-| 8.5     | ↳ Useful Extensions               | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch08_graph_rag/recipe05_useful_extensions.ipynb                |
-| 9       | Agentic RAG                       | -                                                                                                                                                        |
-| 10      | RAG Evaluation                    | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch10_rag_evaluation/rag_evaluation_techniques.ipynb            |
-| 11      | RAG Chatbot (Streamlit)           | -                                                                                                                                                        |
-
-
+| 1 | RAG Setup | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch01_RAG_intro/rag_basics.ipynb |
+| 2 | Generation and Prompt Engineering | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch02_generation/generation.ipynb |
+| 3 | Loading Data | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch03_loading_data/loading_data_to_RAG.ipynb |
+| 4 | Data Preparation | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch04_data_preparation_chunking_data/chunking_data.ipynb |
+| 5 | Embeddings | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch05_text_embedding/text_embeddings.ipynb |
+| 6 | Similarity Search | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch06_similarity_search_vector_databases/vector_databases.ipynb |
+| 7 | Retrieval | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch07_retrieval/retrieval_techniques.ipynb |
+| 8 | Agentic RAG | - |
+| **9** | **Graph RAG** | |
+| 9.1 | ↳ Basic SLA Graph | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch09_graph_rag/recipe01_basic_sla_graph.ipynb |
+| 9.2 | ↳ Enrich Company Data | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch09_graph_rag/recipe02_enrich_company_data.ipynb |
+| 9.3 | ↳ Cypher Queries | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch09_graph_rag/recipe03_cypher_queries.ipynb |
+| 9.4 | ↳ Embeddings Vector Search | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch09_graph_rag/recipe04_embeddings_vector_search.ipynb |
+| 9.5 | ↳ Useful Extensions | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch09_graph_rag/recipe05_useful_extensions.ipynb |
+| 10 | RAG Evaluation | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch10_rag_evaluation/rag_evaluation_techniques.ipynb |
+| 11 | RAG Chatbot (Streamlit) | - |
 
 This repository contains code snippets and practical recipes featured in the O'Reilly book **"RAG with Python Cookbook"**. The book is a comprehensive guide to Retrieval-Augmented Generation (RAG) systems, providing hands-on solutions for building, evaluating, and deploying RAG applications using Python. Each chapter focuses on a specific aspect of RAG, with ready-to-use code and explanations to help you implement state-of-the-art techniques in your own projects.
 
