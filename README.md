@@ -16,8 +16,9 @@
 | 8.4     | Embeddings Vector Search          | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch08_graph_rag/recipe04_embeddings_vector_search.ipynb         |
 | 8.5     | Useful Extensions                 | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch08_graph_rag/recipe05_useful_extensions.ipynb                |
 | 9       | Agentic RAG                       | -                                                                                                                                                        |
-| 10      | RAG Evaluation                    | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch10_rag_evaluation/rag_evaluation_techniques.ipynb -          |
+| 10      | RAG Evaluation                    | https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch10_rag_evaluation/rag_evaluation_techniques.ipynb            |
 | 11      | RAG Chatbot (Streamlit)           | -                                                                                                                                                        |
+
 
 This repository contains code snippets and practical recipes featured in the O'Reilly book **"RAG with Python Cookbook"**. The book is a comprehensive guide to Retrieval-Augmented Generation (RAG) systems, providing hands-on solutions for building, evaluating, and deploying RAG applications using Python. Each chapter focuses on a specific aspect of RAG, with ready-to-use code and explanations to help you implement state-of-the-art techniques in your own projects.
 
