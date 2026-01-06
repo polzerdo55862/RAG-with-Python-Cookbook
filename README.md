@@ -133,4 +133,3 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 - 11.3 Building a Data Analyst Chatbot Using the Text-to-SQL Approach
 - 11.4 Deploying Your Streamlit App Using Docker and AWS
 - 11.5 Incorporating Effective User Feedback Functionality
-  [in progress]
