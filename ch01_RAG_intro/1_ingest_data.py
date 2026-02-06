@@ -72,11 +72,12 @@ def ingest_to_chromadb(chunks, embeddings, db_path, collection_name):
 # tag::run_ingestion[]
 from pathlib import Path
 from openai import OpenAI
+import chromadb
 import os
 
 
 def main():
-    KNOWLEDGE_BASE_FILE = "harry_potter.txt"  # Path to your knowledge base file
+    KNOWLEDGE_BASE_FILE = "harry_potter_knowledge_base.txt"  # Path to your knowledge base file
     CHUNK_SIZE = 1000  # Number of characters per chunk
     CHUNK_OVERLAP = 200  # Number of overlapping characters between chunks
     EMBEDDING_MODEL = "text-embedding-ada-002"  # OpenAI embedding model name
@@ -88,6 +89,7 @@ def main():
 
     chunks = chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
 
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     client = OpenAI(api_key=OPENAI_API_KEY)
     embeddings = generate_embeddings(chunks, client, EMBEDDING_MODEL)
 

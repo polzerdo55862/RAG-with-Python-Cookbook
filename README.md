@@ -98,7 +98,7 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 
 ### Chapter 6: Similarity Search
 
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch07_retrieval/retrieval_techniques.ipynb
+Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch06_similarity_search_vector_databases/vector_databases.ipynb
 
 - 6.1 Choosing the Right Vector Database
 - 6.2 Storing and Searching Embeddings Using FAISS
