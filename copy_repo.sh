@@ -50,6 +50,12 @@ if [ $# -lt 1 ]; then
 fi
 
 NEW_REPO_NAME="$1"
+
+# Check if help is requested
+if [ "$NEW_REPO_NAME" == "--help" ] || [ "$NEW_REPO_NAME" == "-h" ]; then
+    usage
+fi
+
 KEEP_GIT_HISTORY=false
 
 # Check for optional flag
