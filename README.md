@@ -32,6 +32,23 @@
 
 This repository contains code snippets and practical recipes featured in the O'Reilly book **"RAG with Python Cookbook"**. The book is a comprehensive guide to Retrieval-Augmented Generation (RAG) systems, providing hands-on solutions for building, evaluating, and deploying RAG applications using Python. Each chapter focuses on a specific aspect of RAG, with ready-to-use code and explanations to help you implement state-of-the-art techniques in your own projects.
 
+## 🚀 Getting Started
+
+### Clone or Copy This Repository
+
+Want to create your own copy of this repository? We've made it easy!
+
+- **📖 [View the Cloning Guide](CLONING_GUIDE.md)** - Detailed instructions for forking, cloning, and creating your own copy
+- **⚡ Quick Copy** - Use our automated script:
+  ```bash
+  ./copy_repo.sh My-RAG-Cookbook
+  ```
+
+The guide covers multiple methods:
+- Forking on GitHub (recommended for contributions)
+- Creating a completely independent copy
+- Making a local copy with a different name
+
 ## What is this book about?
 
 The RAG with Python Cookbook is designed for developers, data scientists, and machine learning practitioners who want to:
