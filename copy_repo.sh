@@ -96,6 +96,7 @@ if [ "$KEEP_GIT_HISTORY" = false ]; then
     git init
     
     # Set default branch to main
+    # Try git branch -M (rename existing branch), fallback to checkout -b (create new), ignore errors
     git branch -M main 2>/dev/null || git checkout -b main 2>/dev/null || true
     
     # Create .gitignore if it doesn't exist
