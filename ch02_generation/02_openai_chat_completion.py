@@ -2,7 +2,6 @@
 pip install openai
 """
 
-# tag::code_example[]
 from openai import OpenAI
 
 # Step 1: Create the client
@@ -20,4 +19,3 @@ response = client.chat.completions.create(model="gpt-4", messages=messages)
 # Step 4: Extract the answer
 answer = response.choices[0].message.content
 print(answer)  # Output: "4"
-# end::code_example[]

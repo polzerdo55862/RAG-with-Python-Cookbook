@@ -7,7 +7,6 @@ from typing import Optional, List
 import re
 
 
-# tag::convert_pdf_to_images[]
 from pdf2image import convert_from_bytes
 
 
@@ -25,9 +24,7 @@ def convert_pdf_to_images(pdf_file):
     return image_paths
 
 
-# end::convert_pdf_to_images[]
 
-# tag::perform_ocr_and_extract_entities[]
 import openai
 import base64
 from io import BytesIO
@@ -74,9 +71,7 @@ def perform_ocr_and_extract_entities(image_paths):
     return extracted_text
 
 
-# end::perform_ocr_and_extract_entities[]
 
-# tag::extract_entities_from_text[]
 from pydantic import BaseModel, Field
 from typing import List
 import json
@@ -99,7 +94,6 @@ def extract_entities_from_text(extracted_text):
     extracted_data = response.choices[0].message.content
 
     return extracted_data
-# end::extract_entities_from_text[]
 
 st.title("Chat with File Upload")
 

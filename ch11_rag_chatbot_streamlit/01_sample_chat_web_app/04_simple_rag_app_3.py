@@ -8,7 +8,6 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 
-# tag::perform_rag[]
 import app_helper_functions
 
 
@@ -26,7 +25,6 @@ def perform_rag(user_query):
     return response
 
 
-# end::perform_rag[]
 
 # Display chat messages from history on app rerun
 for message in st.session_state.messages:

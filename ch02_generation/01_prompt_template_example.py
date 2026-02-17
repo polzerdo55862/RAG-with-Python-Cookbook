@@ -3,7 +3,6 @@ Prompt Engineering Example
 Shows how to create a basic prompt template for RAG applications
 """
 
-# tag::code_example[]
 # define the prompt template
 template = """
 You are a chat bot who loves to help people! Given the following context sections, answer the
@@ -26,4 +25,3 @@ prompt = PromptTemplate(
 # fill the prompt template
 prompt_text = prompt.format(context=context, users_question=users_question)
 llm(prompt_text)
-# end::code_example[]

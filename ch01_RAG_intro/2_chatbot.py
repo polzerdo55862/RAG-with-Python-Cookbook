@@ -3,7 +3,6 @@ from openai import OpenAI
 import os
 
 
-## tag::retrieve_context[]
 def retrieve_context(query, collection, client, embedding_model, top_k=5):
     response = client.embeddings.create(model=embedding_model, input=query)
     query_embedding = response.data[0].embedding
@@ -11,10 +10,8 @@ def retrieve_context(query, collection, client, embedding_model, top_k=5):
     return results["documents"][0]
 
 
-## end::retrieve_context[]
 
 
-## tag::generate_response[]
 def generate_response(query, context_docs, client, model, temperature, history):
     context = "\n\n---\n\n".join(context_docs)
     prompt = f"CONTEXT:\n{context}\n\nQUESTION: {query}"
@@ -31,10 +28,8 @@ def generate_response(query, context_docs, client, model, temperature, history):
     return response.choices[0].message.content
 
 
-## end::generate_response[]
 
 
-## tag::chatbot_main[]
 if __name__ == "__main__":
     CHROMA_DB_DIR = "./chroma_db_dir"
     COLLECTION_NAME = "harry_potter_kb"
@@ -70,4 +65,3 @@ if __name__ == "__main__":
         conversation_history.append({"role": "user", "content": user_input})
         conversation_history.append({"role": "assistant", "content": response})
         print("Bot:", response)
-## end::chatbot_main[]

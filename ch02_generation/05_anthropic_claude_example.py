@@ -2,7 +2,6 @@
 pip install anthropic
 """
 
-# tag::code_example[]
 from anthropic import Anthropic
 import os
 
@@ -20,4 +19,3 @@ response = client.messages.create(
 )
 
 print(response.content[0].text)
-# end::code_example[]

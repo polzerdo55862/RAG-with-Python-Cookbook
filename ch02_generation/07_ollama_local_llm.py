@@ -5,7 +5,6 @@ Shows how to use locally hosted models via Ollama with the OpenAI SDK
 pip install openai
 """
 
-# tag::code_example[]
 from openai import OpenAI
 
 # Point the client to your local Ollama server
@@ -24,4 +23,3 @@ response = client.chat.completions.create(
 )
 
 print(response.choices[0].message.content)
-# end::code_example[]

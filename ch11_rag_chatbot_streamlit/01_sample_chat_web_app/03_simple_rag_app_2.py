@@ -18,7 +18,6 @@ This serves as a foundation that can be extended with real RAG functionality,
 including document retrieval, vector databases, and LLM integration.
 """
 
-# tag::simple_rag_app[]
 import streamlit as st
 
 st.title("Simple RAG Chat App")
@@ -50,4 +49,3 @@ if prompt := st.chat_input("Ask a question"):
 
     with st.chat_message("assistant"):
         st.markdown(response)
-# end::simple_rag_app[]

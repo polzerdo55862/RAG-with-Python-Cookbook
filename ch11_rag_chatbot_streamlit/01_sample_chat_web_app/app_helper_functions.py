@@ -1,4 +1,3 @@
-# tag::extract_city_country[]
 import openai
 import json
 
@@ -23,9 +22,7 @@ def extract_the_city_and_country(user_query):
         return None
 
 
-# end::extract_city_country[]
 
-# tag::get_coordinates_for_city[]
 from geopy.geocoders import Nominatim
 
 
@@ -40,10 +37,8 @@ def get_coordinates_for_city(city, country):
         return None, None
 
 
-# end::get_coordinates_for_city[]
 
 
-# tag::get_current_weather_open_meteo[]
 import requests
 
 
@@ -72,9 +67,7 @@ def get_current_weather_open_meteo(latitude, longitude):
         return None
 
 
-# end::get_current_weather_open_meteo[]
 
-# tag::create_weather_prompt[]
 import openai
 
 
@@ -106,4 +99,3 @@ def send_prompt_to_llm(prompt):
     return response.choices[0].message.content.strip()
 
 
-# end::create_weather_prompt[]
