@@ -1,1 +1,0 @@
-This is a reminder to review the book associated with this repository. Make time to go through the relevant content.
