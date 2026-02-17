@@ -2,6 +2,7 @@
 pip install openai
 """
 
+# tag::code_example[]
 from openai import OpenAI
 
 
@@ -25,3 +26,4 @@ context = "RAG stands for Retrieval-Augmented Generation."
 question = "What does RAG stand for?"
 answer = ask_with_context(context, question)
 print(answer)
+# end::code_example[]

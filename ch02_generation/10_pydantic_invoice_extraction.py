@@ -2,6 +2,7 @@
 pip install openai pydantic
 """
 
+# tag::code_example[]
 from pydantic import BaseModel
 from openai import OpenAI
 

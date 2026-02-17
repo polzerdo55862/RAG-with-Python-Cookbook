@@ -2,6 +2,7 @@
 pip install anthropic
 """
 
+# tag::code_example[]
 import os
 from anthropic import Anthropic
 
@@ -12,3 +13,4 @@ resp = client.messages.create(
     messages=[{"role": "user", "content": "Say hi"}],
 )
 print(resp.content[0].text)
+# end::code_example[]
