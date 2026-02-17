@@ -2,7 +2,6 @@
 pip install ollama
 """
 
-# tag::code_example[]
 import ollama
 
 

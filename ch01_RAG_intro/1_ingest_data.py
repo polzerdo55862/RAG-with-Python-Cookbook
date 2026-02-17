@@ -1,4 +1,3 @@
-# tag::chunk_text[]
 def chunk_text(text, chunk_size, overlap):
     chunks = []
     start = 0
@@ -22,10 +21,6 @@ def chunk_text(text, chunk_size, overlap):
     return chunks
 
 
-# end::chunk_text[]
-
-
-# tag::generate_embeddings[]
 def generate_embeddings(texts, client, model):
     embeddings = []
     batch_size = 100
@@ -38,10 +33,6 @@ def generate_embeddings(texts, client, model):
     return embeddings
 
 
-# end::generate_embeddings[]
-
-
-# tag::ingest_to_chromadb[]
 def ingest_to_chromadb(chunks, embeddings, db_path, collection_name):
 
     db_path.mkdir(parents=True, exist_ok=True)
@@ -66,10 +57,6 @@ def ingest_to_chromadb(chunks, embeddings, db_path, collection_name):
     return collection.count()
 
 
-# end::ingest_to_chromadb[]
-
-
-# tag::run_ingestion[]
 from pathlib import Path
 from openai import OpenAI
 import os
@@ -96,4 +83,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-# end::run_ingestion[]
