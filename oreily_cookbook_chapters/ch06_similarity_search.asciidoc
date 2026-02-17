@@ -1,0 +1,1039 @@
+[[chapter_similarity_search]]
+== Vector Databases and Similarity Searches
+
+Vector databases have grown rapidly in popularity, especially since the rise of LLMs. <<image_vector_stores_timeline>> shows some of the most popular vector databases and when they were released.
+
+FAISS was released in 2017, followed by Milvus and Weaviate in 2019, Vald in 2020, Pinecone in 2021, and ChromaDB in 2023. At the same time, traditional databases such as PostgreSQL and Elasticsearch have added vector search features to their existing platforms. This means you don't necessarily need to add a dedicated vector database to your tech stack if your existing SQL or NoSQL database already supports vector search.
+
+[[image_vector_stores_timeline]]
+.The evolution of vector stores
+image::img/ch06_images/evolvement_of_vector_stores_over_time.png[Timeline chart showing the evolution of vector database products from 2017 to 2023, displaying release dates for major vector stores including Milvus, Pinecone, Weaviate, Qdrant, ChromaDB, and pgvector, illustrating the rapid growth of the vector database ecosystem]
+
+This chapter introduces popular libraries and databases that support vector operations, including FAISS, ChromaDB, and PostgreSQL. You'll learn how to choose the right vector store for your needs, implement similarity searches, and optimize performance using indexing techniques.
+
+[NOTE]
+====
+Throughout this chapter, you'll encounter both "similarity search" and "semantic search". "Similarity search" refers to the technical operation of finding vectors that are close together in vector space. "Semantic search" describes the user-facing capability of searching by meaning rather than exact keywords. Semantic search is implemented using similarity search as its underlying mechanism.
+====
+
+You can find all the code examples for this chapter in the https://github.com/polzerdo55862/RAG-with-Python-Cookbook[book's GitHub repository].
+
+[[recipe_vector_store_selection]]
+=== Choosing the Right Vector Database
+
+==== Problem
+
+You need to pick a vector database that fits your RAG workload, your team, and your infrastructure, without overengineering or locking yourself into the wrong tech stack.
+
+==== Solution
+
+Use the following decision path to narrow down your options to one or two realistic choices.
+
+Follow these steps to evaluate and choose a vector database for your RAG application:
+
+*Step 1: Define your requirements*
+
+- Is vector search only used during preprocessing, experiments, or offline pipelines?
+- Or is it part of a live application serving users?
+
+If vector search is not part of a live system, use a vector library or an in-file vector store.
+
+- FAISS or Annoy for pipelines and experiments
+- ChromaDB for local RAG prototypes
+
+If vector search is part of a live application, continue to Step 2.
+
+*Step 2: Consider operational requirements*
+
+- Do embeddings need to live next to your business data, users, documents, or permissions?
+
+If yes, use a database you already operate.
+
+- PostgreSQL with pgvector
+- MongoDB with vector search
+- Redis or Cassandra with vector support
+
+If no, continue to Step 3.
+
+*Step 3: Decide how much scale and operations you need*
+
+- Will the system grow to millions or tens of millions of vectors?
+- Do you need filtering, access control, and predictable latency?
+
+If yes, use a purpose-built or managed vector database.
+
+- Weaviate, Qdrant, Milvus for self hosted
+- Pinecone for fully managed
+
+If no, an in-file store like ChromaDB may still be sufficient.
+
+*Step 4: Validate against practical constraints*
+
+Ask yourself the questions shown in <<table_vector_db_selection_questions>>.
+
+[[table_vector_db_selection_questions]]
+.Practical questions for vector database selection
+[cols="2,3", options="header"]
+|===
+| Question | If yes, lean toward
+
+| Are you allowed to send your data to a 3rd party managed cloud service?
+| Pinecone or cloud managed PostgreSQL
+
+| Do you already operate PostgreSQL or MongoDB?
+| pgvector or MongoDB vector search
+
+| Do you need keyword search combined with vectors?
+| Elasticsearch, OpenSearch, or Weaviate
+
+| Do you need minimal setup for a small team?
+| ChromaDB or managed Pinecone
+|===
+
+Once you reach this point, you should have one or two realistic candidates. <<pros_and_cons_vector_stores_revised_v5>> provides a comparison to make the final call.
+
+[[pros_and_cons_vector_stores_revised_v5]]
+.Pros and Cons of Common Vector Stores
+[cols="1,1,2,2", options="header"]
+|===
+| Database | Type | Pros | Cons
+
+| FAISS
+| Vector library
+a|
+Very fast similarity search
+
+GPU acceleration
+
+Great for pipelines
+a|
+No persistence
+
+No filtering or access control
+
+Means you must build everything else
+
+| ChromaDB
+| Embedded vector store
+a|
+Instant setup
+
+Works well for notebooks and prototypes
+
+Python first API
+a|
+Not production grade
+
+Limited scaling and durability
+
+| PostgreSQL (pgvector)
+| Relational database with vectors
+a|
+Vectors live next to business data
+
+Uses existing backups and security
+
+Easy joins and filters
+a|
+Slower than specialized engines
+
+Needs tuning for large scale
+
+| Weaviate
+| Vector database
+a|
+Built for large scale RAG
+
+Supports hybrid search
+
+Rich filtering
+a|
+New operational stack
+
+Higher complexity
+
+| Pinecone
+| Managed vector database
+a|
+No infrastructure to manage
+
+Strong performance guarantees
+
+Easy to scale
+a|
+Cloud only
+
+Vendor lock-in
+
+Cost grows with usage
+|===
+
+==== Discussion
+
+Vector databases exist because traditional databases are not optimized for nearest neighbor search over high-dimensional vectors. Similarity search works by computing the distance between vectors in high-dimensional space. Modern embedding models produce vectors with hundreds or thousands of dimensions, which makes brute-force search too slow. Vectors that are close together represent semantically similar content, while distant vectors represent different concepts.
+
+The main requirement for a vector database in a RAG application is fast similarity search over thousands or millions of vectors. The store must also support high-dimensional vectors, since modern embedding models typically produce vectors with thousands of dimensions.
+
+The mistake many teams make is choosing based on benchmarks instead of workflow. A RAG prototype with a few thousand chunks does not need a distributed vector database. A production assistant serving many users does.
+
+<<image_vector_stores>> shows how the ecosystem clusters into libraries, embedded stores, databases with vector extensions, and purpose built vector engines.
+
+[[image_vector_stores]]
+.Different kinds of vector stores organized by type and use case
+image::img/ch06_images/overview_vector_stores.png[Classification diagram showing five categories of vector stores: cloud-native databases, traditional databases with vector extensions, specialized vector databases, library-based solutions, and graph databases with vector capabilities]
+
+_Purpose-built vector databases_ such as Pinecone, Weaviate, or Qdrant are optimized for vector search and also offer core database capabilities such as persistence and user management.
+
+_Text-search-oriented databases_ such as Elasticsearch and OpenSearch are popular in RAG applications. A retriever that searches semantic text chunks behaves like a specialized search engine, which makes these systems a natural fit when keyword search already plays an important role.
+
+_SQL and NoSQL systems_ including PostgreSQL, MongoDB, Redis, and Cassandra support vector search through extensions or native features. This allows you to keep application data, metadata, and embeddings in one place and combine filtering with semantic search using familiar query languages.
+
+SQL databases with vector support, or dedicated vector databases like Pinecone and Milvus, are best suited for production systems. They support hybrid search, metadata filtering, and workflows common in larger RAG and agentic applications. For smaller projects and prototypes, vector libraries or lightweight vector stores like Chroma require minimal setup and provide excellent performance for standalone vector operations.
+
+The main tradeoff is simplicity versus capability. Vector libraries are simple to set up but lack persistence and access control. Purpose-built vector databases provide comprehensive features but require infrastructure management or vendor costs. SQL databases with vector extensions offer the best integration when you already use them, but may not match the raw performance of specialized solutions at very large scale.
+
+If you start with a simple vector library and later need a full database, the migration is usually straightforward. You must rebuild the index, but don't need to regenerate embeddings, which is the costly part.
+
+
+==== See Also
+
+* The https://github.com/erikbern/ann-benchmarks[ANN Benchmarks repository] compares performance of vector search engines.
+* The https://github.com/chroma-core/chroma[Chroma documentation] shows how to run an in-file vector store.
+* The https://github.com/facebookresearch/faiss[FAISS repository] explains how vector libraries implement similarity search.
+
+[[recipe_how_to_use_faiss]]
+=== Storing and Searching Embeddings Using FAISS
+
+==== Problem
+
+You need a lightweight solution to store embeddings and perform similarity searches.
+
+==== Solution
+
+FAISS is well suited for RAG workflows which do not need persistence or metadata filtering.
+
+<<using_FAISS_for_RAG_workflow>> illustrates how FAISS fits into a RAG workflow for temporary analysis tasks.
+
+[[using_FAISS_for_RAG_workflow]]
+.Using FAISS for RAG workflow
+image::img/ch06_images/using_FAISS_for_RAG_workflow.png[Workflow diagram showing FAISS integration in RAG pipeline. Illustrates document ingestion, temporary index creation in memory, embedding generation, vector search for retrieval, and final document extraction. Emphasizes FAISS as lightweight solution for one-time or batch processing tasks]
+
+The code in this recipe uses the CPU option, so you can run it on any laptop. Install `faiss-cpu` and the Python libraries used to generate and handle embeddings:
+
+[source,console]
+----
+pip install faiss-cpu openai numpy
+----
+
+The following code generates a FAISS index and populates it with sample text embeddings. An index is the data structure where FAISS stores vectors and performs searches.
+
+This recipe uses OpenAI embedding models to generate vectors and then adds them to a FAISS index. The example uses `IndexFlatL2`, which measures similarity using L2 distance. L2 distance and cosine distance are the most commonly used similarity metrics.
+
+[source, python,indent=0]
+----
+import faiss
+import numpy as np
+from openai import OpenAI
+
+# Example list of sample strings
+text_chunks = [
+    "The sky is blue.",
+    "The sun is shining.",
+    "I love chocolate.",
+    "Ice cream is delicious.",
+    "Roses are red.",
+    "Violets are blue.",
+]
+
+# Initialize the OpenAI embeddings model
+client = OpenAI()
+model = "text-embedding-3-small"
+
+# Generate embeddings for the sample strings
+def get_embedding(text):
+    response = client.embeddings.create(input=text, model=model)
+    return response.data[0].embedding
+
+document_embeddings = np.array(
+    [get_embedding(text) for text in text_chunks]
+)
+
+# Convert embeddings to float32 (FAISS requires float32 type)
+document_embeddings = document_embeddings.astype("float32")
+
+# Create a FAISS index (using L2 distance)
+index = faiss.IndexFlatL2(document_embeddings.shape[1])
+
+# Add embeddings to the index
+index.add(document_embeddings)
+----
+
+The next step is to use the index you just created. When a user asks a question, the first step is to generate an embedding for the query and then search the index by calculating the L2 distance.
+
+The following code demonstrates this with a sample query asking what color violets are.
+
+[source, python,indent=0]
+----
+# generate a query embedding for the user query
+query = "What color are violets?"
+query_embedding = np.array(get_embedding(query)).astype("float32")
+
+# Perform the search: k = number of closest documents you want to retrieve
+k = 5
+distances, indices = index.search(query_embedding.reshape(1, -1), k)
+
+# Retrieve the documents corresponding to the indices
+retrieved_documents = [text_chunks[i] for i in indices[0]]
+----
+
+<<screenshot_faiss_query_result>> shows the search results, including the distance, chunk location, and the retrieved text chunks. The sentence stating that violets are blue has the smallest distance, which means it has the highest semantic similarity.
+
+[[screenshot_faiss_query_result]]
+.FAISS query result example
+image::img/ch06_images/screenshot_faiss_query_result.png[Python output table showing FAISS search results with two columns: L2 distances and corresponding text chunks. Displays ranked results with numerical distance scores, demonstrating nearest neighbor retrieval with lower distances indicating higher similarity]
+
+==== Discussion
+
+FAISS is a library for fast similarity search over dense vectors. It was released by Meta in 2017 and remains widely used because it is lightweight, supports both CPU and GPU, and provides excellent performance for in-memory vector operations.
+
+FAISS works by organizing vectors into efficient index structures that enable fast nearest neighbor search. The L2 (Euclidean distance) and cosine similarity metrics measure how close vectors are in high-dimensional space. L2 measures the straight-line distance between two points, while cosine similarity measures the angle between vectors. Both effectively identify semantically similar content.
+
+Use FAISS when your workflow doesn't require persistence between runs, metadata filtering, or user-specific access controls. FAISS excels at temporary, single-use analysis tasks where you build an index, query it, and discard it. For example, analyzing a contract to extract parties and dates needs vector search only during that processing job. Similarly, research scripts that process a corpus once and save results work well with FAISS.
+
+Do not use FAISS when you need data to survive application restarts, when multiple users need different access permissions, or when you must filter by metadata fields before searching. FAISS stores everything in memory or in a simple file format with no built-in query language or access control.
+
+The main tradeoff with FAISS is simplicity versus features. FAISS offers the fastest pure vector search performance with minimal code, but provides no database capabilities. You gain speed and simplicity but must handle persistence, access control, and metadata filtering in your application layer.
+
+FAISS is an in memory vector index that can be serialized to disk, but it does not provide database level persistence, metadata, or concurrency control. ChromaDB adds lightweight persistence and basic metadata filtering. PostgreSQL with pgvector adds full SQL capabilities, transactions, and production grade access control, but requires database management. Choose FAISS for batch jobs and offline indexing, ChromaDB for prototypes that need simple persistence, and PostgreSQL for production systems.
+
+For production systems requiring persistence, metadata filtering, or multi-user access, use PostgreSQL with pgvector (when you already use PostgreSQL) or dedicated vector databases like Weaviate or Pinecone. These solutions support role-based access control and are available as managed services on cloud platforms.
+
+==== See Also
+
+* The https://github.com/facebookresearch/faiss[FAISS repository] contains the official documentation and usage examples.
+* The https://github.com/facebookresearch/faiss/wiki[FAISS wiki] provides detailed guidance on index types and performance tuning.
+* The https://arxiv.org/abs/1702.08734[original FAISS paper] explains the algorithms and design principles behind the library.
+
+[[recipe_how_to_use_chromadb]]
+=== Storing and Working with Embeddings in a Chroma Vector Database
+
+==== Problem
+
+You need a lightweight vector database for a smaller project that you can set up in minutes.
+
+==== Solution
+
+ChromaDB is a lightweight vector database designed for quick prototyping and small projects. It provides persistence and metadata handling while remaining simple to set up and use.
+
+ChromaDB can store your data in two ways:
+
+* Ephemeral client: stores data in memory, which means the data is lost when the application stops.
+* Persistent client: saves data to disk, so you can reload it when restarting your app.
+
+ChromaDB has built-in functions that can handle text processing and embedding generation automatically. For prototypes, these built-in features speed up development. For production systems you plan to migrate later, generate embeddings in your own code and use ChromaDB only to store and search them. This makes switching to PostgreSQL or Pinecone straightforward.
+
+In <<chroma_db_process_flow>>, you can see the two main steps:
+
+. Load the text, chunk it, and generate embeddings using an embedding model.
+. Insert those embeddings into ChromaDB. If persistence is enabled, ChromaDB also stores them on disk.
+
+When a user asks a new question, you generate an embedding for the question using the same embedding model and then execute a vector search in ChromaDB.
+
+[[chroma_db_process_flow]]
+.How to store and retrieve vector embeddings from ChromaDB
+image::img/ch06_images/chroma_db_process_flow.png[Process flow diagram showing ChromaDB operations in two phases. Top section shows data ingestion with documents, metadata, and embeddings being stored in collections. Bottom section shows query phase with embedding generation, similarity search, and result retrieval with metadata filtering capabilities]
+
+To use ChromaDB, you only need the ChromaDB Python package. Because this example uses an OpenAI embedding model, you also need the OpenAI SDK.
+
+[source,bash]
+----
+pip install chromadb openai
+----
+
+To get started with ChromaDB, the following code snippet creates a Chroma client and a new collection. Because this snippet uses the persistent client, you must provide a directory path where ChromaDB can store its files.
+
+[source, python,indent=0]
+----
+import chromadb
+
+# vector store settings
+VECTOR_STORE_PATH = r"../02_Data/00_Vector_Store"
+COLLECTION_NAME = "my_collection"
+
+# get/create a chroma client and collection
+chroma_client = chromadb.PersistentClient(path=VECTOR_STORE_PATH)
+collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+----
+
+In the next step, you add text chunks to the collection. ChromaDB can handle tokenization, embedding, and indexing for you and uses the Sentence Transformer model `all-MiniLM-L6-v2` by default to create embeddings. However, ChromaDB also allows you to supply embeddings generated elsewhere.
+
+In the following example, embeddings are generated in your application code using an OpenAI text embedding model, and only stored and searched in ChromaDB. Using the OpenAI embedding model, you create a list of embeddings for the text chunks you want to insert into ChromaDB, and then pass that list to the vector store using the `add` function.
+
+
+[source, python,indent=0]
+----
+from openai import OpenAI
+
+text_chunks = [
+    "The sky is blue.",
+    "The sun is shining.",
+    "I love chocolate.",
+    "Ice cream is delicious.",
+    "Roses are red.",
+    "Violets are blue.",
+]
+
+# Generate embeddings
+client = OpenAI()
+model = "text-embedding-3-small"
+def get_embedding(text):
+    response = client.embeddings.create(input=text, model=model)
+    return response.data[0].embedding
+
+embeddings_model = client  # for compatibility with later code
+embeddings_list = [get_embedding(text) for text in text_chunks]
+
+# add data frame to collection
+collection.add(
+    embeddings=embeddings_list,
+    documents=text_chunks,
+    ids=[
+        str(i) for i in range(len(text_chunks))
+    ],  # create a list of strings as index
+)
+----
+
+Now you can test the setup by querying the collection. The next short snippet uses a sample question asking for the color of the sky. The question is embedded and used to query the collection.
+
+[source, python, indent=0]
+----
+# query collection
+query = "What is the color of the sky?"
+query_embedding = get_embedding(query)
+results = collection.query(query_embeddings=[query_embedding], n_results=3)
+----
+
+The query returns the three closest matching text chunks along with their cosine distance. <<screenshot_working_with_embeddings>> shows the resulting dictionary. It includes not only the text chunks and IDs of the best matches, but also any metadata stored in ChromaDB.
+
+[[screenshot_working_with_embeddings]]
+.Working with embeddings in ChromaDB
+image::img/ch06_images/screenshot_working_with_embeddings.png[Screenshot of ChromaDB query results displaying a dictionary structure containing three matched text chunks with their IDs, cosine similarity distances, and associated metadata, demonstrating the retrieval format for vector search results]
+
+
+==== Discussion
+
+ChromaDB works by storing vectors with their metadata in a simple embedded database. It persists data to disk automatically, so you can restart your application without rebuilding the index. This makes ChromaDB suitable for prototypes and small projects where you need more than FAISS but less than a full production database.
+
+Use ChromaDB when you need persistence and basic metadata filtering but want minimal setup. ChromaDB is ideal for prototypes, proof-of-concept projects, and small production systems with datasets under a few hundred thousand vectors. It works well when you want to test a RAG application quickly without configuring PostgreSQL or signing up for a managed service.
+
+Do not use ChromaDB when your dataset grows beyond a few hundred thousand vectors, when you need role-based access control, when you require SQL joins with application data, or when query latency must be under 10ms at scale. ChromaDB lacks advanced security features, sophisticated query optimization, and horizontal scaling capabilities.
+
+The main tradeoff with ChromaDB is ease of use versus scalability. You can start coding immediately with minimal dependencies, but performance degrades as your dataset grows. ChromaDB provides a middle ground between FAISS (which can be saved to disk but lacks database features) and PostgreSQL (full database features).
+
+ChromaDB differs from FAISS by adding persistence and metadata filtering, which means you can restart your app without rebuilding the index. ChromaDB differs from PostgreSQL with pgvector by being simpler to set up but lacking SQL capabilities, transaction support, and production-grade access control. When your dataset grows beyond a few hundred thousand vectors or you need role-based access and SQL joins, migrate to PostgreSQL with pgvector or a managed vector database like Pinecone.
+
+==== See Also
+
+* The https://docs.trychroma.com/[ChromaDB documentation] provides comprehensive setup and usage guidance.
+* The https://github.com/chroma-core/chroma[ChromaDB repository] contains code examples and implementation details.
+* The https://cookbook.chromadb.dev/[ChromaDB cookbook] offers practical examples for common use cases.
+
+[[recipe_how_to_use_postgresql]]
+=== Storing Embeddings in PostgreSQL Using the pgvector Extension
+
+==== Problem
+
+You want to store your application data and vector data in the same database by using PostgreSQL with the pgvector extension.
+
+==== Solution
+
+PostgreSQL with the pgvector extension lets you store application data and high-dimensional vectors in the same database. Vector search becomes just another SQL operator, so you can extend existing tables and queries with similarity search capabilities.
+
+If you have not installed PostgreSQL yet, you can either use Docker to spin up a container with PostgreSQL and the pgvector extension installed, or you can install PostgreSQL directly on your machine.
+
+[NOTE]
+====
+Docker is a platform that packages applications and their dependencies into containers—lightweight, portable units that run consistently across different environments. A Docker container includes everything needed to run an application, making it easy to share and deploy without worrying about system-specific configurations.
+====
+
+To install PostgreSQL directly, go to the https://www.postgresql.org/download/[PostgreSQL website] and download the latest installer for your operating system. In addition, you need to install the pgvector extension. The installation steps depend on your operating system:
+
+- Windows: Clone the https://github.com/pgvector/pgvector[pgvector repository]. The README contains instructions for installing it correctly.
+- macOS: Use Homebrew to install pgvector with a single command.
+
+Docker provides a simpler and more reproducible approach. A RAG application that uses PostgreSQL as a vector store can run in a container with a fixed configuration, making it straightforward to deploy the same setup to AWS, Google Cloud, or Azure.
+
+To run Docker containers locally, download and install Docker Desktop from the Docker website. Once Docker is installed, create a Docker Compose file that defines the configuration of the container you want to run, and let Docker start the container.
+
+The following code shows the contents of the `docker-compose.yml` file. In your project directory, create a new `docker-compose.yml` file, add the content shown below, and save it.
+
+[source, yaml, indent=0]
+----
+version: '3.8'
+services:
+  db:
+    image: ankane/pgvector
+    container_name: postgres_with_pgvector
+    restart: always
+    environment:
+      POSTGRES_USER: rag_cookbook_user
+      POSTGRES_PASSWORD: rag_cookbook_user_pw
+      POSTGRES_DB: rag_cookbook
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+----
+
+To start the container, navigate to the directory where the `docker-compose.yml` file is located and run the following command:
+
+[source, bash, indent=0]
+----
+docker-compose up -d
+----
+This command searches the current directory for a Docker Compose file and downloads the container image `ankane/pgvector`, which contains PostgreSQL and pgvector. The Docker Compose file sets the PostgreSQL user, password, and database name, and exposes the port used to reach the PostgreSQL database.
+
+To verify that your container is running correctly, open the Docker Dashboard and check the status of the container. <<screenshot_docker>> shows how the Docker Dashboard looks when the PostgreSQL container is running.
+
+[[screenshot_docker]]
+.How to check if the Docker container is running
+image::img/ch06_images/screenshot_docker.png[Screenshot of Docker Desktop dashboard showing running PostgreSQL container with status indicators, port mappings, resource usage, and container health information for pgvector database instance]
+
+To connect to the newly created PostgreSQL database from Python, this recipe uses the `psycopg2` package.
+
+[source, bash]
+----
+pip install psycopg2-binary openai
+----
+
+The following code snippet connects to the database using the defined username, password, and database name, and then creates a new table that contains:
+
+- an ID for the text chunk
+- the text chunk
+- the embedding vector
+
+To enable vector search and store embeddings, the embedding column uses the `vector` data type with the correct number of dimensions. In this case, the vector has 1536 dimensions because this recipe uses OpenAI's text-embedding-3-small model, which produces embeddings with that dimensionality. Remember that the `vector` data type is available only if you have installed the pgvector extension.
+
+[source, python, indent=0]
+----
+import psycopg2
+
+conn = psycopg2.connect(
+    host="localhost",
+    port=5432,
+    dbname="postgres",
+    user="postgres",
+    password="postgres",
+)
+
+cur = conn.cursor()
+
+cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS embeddings (
+        id SERIAL PRIMARY KEY,
+        chunk TEXT NOT NULL,
+        embedding vector(1536) NOT NULL
+    );
+""")
+
+conn.commit()
+cur.close()
+conn.close()
+----
+
+The next step is to populate the table with sample data. The following code snippet loops through a list of sample text chunks, generates embeddings using the OpenAI embedding model, and then inserts the text chunks and their embeddings into the table.
+
+[source, python, indent=0]
+----
+from openai import OpenAI
+
+# Define text chunks
+text_chunks = [
+    "The sky is blue.",
+    "The sun is shining.",
+    "I love chocolate.",
+    "Ice cream is delicious.",
+    "Roses are red.",
+    "Violets are blue.",
+]
+
+client = OpenAI()
+model = "text-embedding-3-small"
+
+def get_embedding(text):
+    response = client.embeddings.create(input=text, model=model)
+    return response.data[0].embedding
+
+index = 0
+cur = conn.cursor()
+
+# Insert the embeddings into the table
+for text_chunk in text_chunks:
+    embedding = get_embedding(text_chunk)
+    cur.execute(
+        """INSERT INTO embeddings
+        (id, chunk, embedding)
+        VALUES (%s, %s, %s)""",
+        (index, text_chunk, embedding),
+    )
+    index += 1
+----
+
+The function fills the PostgreSQL table with text chunks and their corresponding embeddings. <<screenshot_show_the_postgres_table>> shows how the table is populated: six text chunks along with their embeddings.
+
+[[screenshot_show_the_postgres_table]]
+.How the embeddings table looks in PostgreSQL
+image::img/ch06_images/screenshot_show_the_postgres_table.png[Screenshot of PostgreSQL database table showing embeddings storage structure with columns for ID, text content, and 1536-dimensional embedding vectors. Displays multiple rows with sample text chunks and their corresponding vector representations stored as arrays]
+
+You can now use this table like any other SQL table. You can perform SELECT, CREATE, and UPDATE operations. Since the table contains a vector column, you can also perform vector searches using cosine similarity, Euclidean distance, or inner product as the distance metric.
+
+==== Discussion
+
+PostgreSQL with pgvector works by storing embeddings as native vector columns alongside your application data. The pgvector extension adds vector data types and similarity search operators directly to SQL, so you can query embeddings using familiar PostgreSQL syntax. This enables you to join user tables, document metadata, and embeddings in a single query without managing separate systems.
+
+Use PostgreSQL with pgvector when your application already uses PostgreSQL for structured data, when you need to filter embeddings by metadata (user permissions, dates, categories) before similarity search, or when you want to avoid managing a separate vector database. PostgreSQL works well for production RAG systems with up to tens of millions of vectors, especially when you need ACID transactions and role-based access control.
+
+Do not use PostgreSQL with pgvector when you need to search hundreds of millions or billions of vectors with single-digit millisecond latency. At that scale, purpose-built vector databases like Pinecone or Weaviate provide better performance. Also avoid PostgreSQL if your workload is purely vector search with no metadata filtering, as FAISS or specialized vector databases will be faster.
+
+The main tradeoff with PostgreSQL is integration versus raw performance. You gain unified data management, SQL joins, and transactional guarantees, but specialized vector databases can be faster for pure vector-only workloads at very large scale. For most RAG applications, the integration benefits outweigh the performance difference.
+
+PostgreSQL with pgvector differs from FAISS by providing persistence, ACID transactions, and SQL capabilities. It differs from ChromaDB by offering production-grade access control, query optimization, and the ability to join embeddings with structured data. It differs from specialized vector databases by integrating with your existing PostgreSQL infrastructure but potentially offering lower performance at extreme scale (billions of vectors).
+
+==== See Also
+
+* The https://github.com/pgvector/pgvector[pgvector repository] contains installation instructions and configuration options.
+* The https://www.postgresql.org/docs/current/index.html[PostgreSQL documentation] provides comprehensive database setup and management guidance.
+* The https://github.com/pgvector/pgvector#installation-notes[pgvector installation guide] offers platform-specific setup instructions.
+
+[[recipe_performing_similarity_search_postgresql]]
+=== Performing Similarity Search in PostgreSQL
+
+==== Problem
+
+You want to find the text chunks most similar to a user's query using PostgreSQL.
+
+==== Solution
+
+This recipe assumes you have a PostgreSQL table with a vector column. The example uses a table called `embeddings` with columns `id` (integer), `chunk` (text), and `embedding` (vector).
+
+If you are following this recipe standalone, first establish a database connection and ensure the table exists. The following code creates the connection and table structure:
+
+[source, python, indent=0]
+----
+import psycopg2
+
+conn = psycopg2.connect(
+    host="localhost",
+    port=5432,
+    dbname="postgres",
+    user="postgres",
+    password="postgres",
+)
+
+cur = conn.cursor()
+cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS embeddings (
+        id SERIAL PRIMARY KEY,
+        chunk TEXT NOT NULL,
+        embedding vector(1536) NOT NULL
+    );
+""")
+conn.commit()
+cur.close()
+----
+
+For full setup details including Docker configuration, see <<recipe_how_to_use_postgresql>>.
+
+The pgvector extension supports the most common similarity metrics, such as cosine similarity, Euclidean distance, and inner product.
+
+The practical example uses the `psycopg2` library to connect to PostgreSQL and execute SQL queries. Embeddings are created with OpenAI embedding models.
+
+[source,bash]
+----
+pip install psycopg2-binary openai
+----
+
+The following code performs a cosine similarity search using the `<=>` operator.
+
+Alternatively, you can use:
+
+* Euclidean distance with the `<->` operator
+* Inner product with the `<#>` operator
+* Taxicab (Manhattan) distance with the `<+>` operator
+
+The next code snippet searches the newly created table, which contains random text chunks about weather, flowers, and food. The sample query is "sweet", so the hypothesis is that the text chunks related to food will rank higher.
+
+[source, python, indent=0]
+----
+from openai import OpenAI
+
+# Initialize the OpenAI embeddings model
+client = OpenAI()
+model = "text-embedding-3-small"
+
+# Example text chunk
+text_chunk = "Sweets are delicious."
+
+# Get the embedding
+response = client.embeddings.create(input=text_chunk, model=model)
+embeded_query = response.data[0].embedding
+
+cur = conn.cursor()
+cur.execute(
+    f"""
+    SELECT 1 - (embedding <=> '{embeded_query}') AS cosine_similarity, *
+    FROM embeddings
+    ORDER BY 1 - (embedding <=> '{embeded_query}') DESC
+    LIMIT 20;
+"""
+)
+
+results = cur.fetchall()
+----
+
+<<screenshot_calculate_cosine_sim_in_postgresql>> shows the ranked results, including the similarity score, the text chunk, and the embedding vector itself. The two highest-ranked text chunks are about ice cream and chocolate.
+
+
+[[screenshot_calculate_cosine_sim_in_postgresql]]
+.How to calculate cosine similarity in PostgreSQL
+image::img/ch06_images/screenshot_calculate_cosine_sim_in_postgresql.png[Screenshot showing PostgreSQL query results table with columns for text chunks, cosine similarity scores, and ranking. Demonstrates vector similarity search using pgvector extension with results ordered by relevance score from highest to lowest match]
+
+==== Discussion
+
+Similarity search in PostgreSQL works by computing distance metrics (cosine similarity, Euclidean distance, inner product) between the query embedding and stored embeddings using SQL operators. The `<=>` operator calculates cosine distance, `<->` calculates Euclidean distance, and `<#>` calculates inner product. PostgreSQL executes these calculations either by scanning all rows or by using vector indexes (HNSW or IVF) to narrow the search space.
+
+The power of PostgreSQL similarity search comes from combining it with SQL filtering. You can use WHERE clauses to filter by metadata before computing similarity, reducing the search space and improving relevance. For example, filter to documents accessible by the current user, published after a certain date, or tagged with specific categories, then find the most similar vectors within that filtered set.
+
+Use SQL filtering with similarity search when your RAG application needs user-specific results, when document permissions matter, when you want to restrict search to recent content, or when categories and tags improve relevance. For example, a legal RAG system should search only contracts the user has permission to view. A news RAG system might search only articles from the last 30 days.
+
+Do not use SQL filtering when all documents are equally accessible to all users and no metadata filtering is needed. In that case, pure vector search without filtering is simpler and faster. Also avoid complex multi-table joins in the same query as similarity search, as this can slow down performance. Filter first in a subquery or CTE, then run similarity search.
+
+The main tradeoff is flexibility versus complexity. SQL filtering enables sophisticated query logic but requires careful query construction to maintain performance. Improperly indexed filter columns or overly complex joins can make queries slow. Test query performance with realistic data volumes before deploying to production.
+
+This approach differs from pure vector search (FAISS, standalone Pinecone) by enabling metadata filtering within the database. It differs from hybrid search (next recipe) by focusing on metadata filtering rather than keyword matching. Use simple SQL filtering when you need to restrict the search space by metadata. Use hybrid search when exact keyword matches also matter.
+
+==== See Also
+
+* The https://github.com/pgvector/pgvector[pgvector repository] documents similarity metrics and query operators.
+* The https://www.postgresql.org/docs/current/indexes.html[PostgreSQL indexing documentation] explains index types and optimization strategies.
+* The https://github.com/pgvector/pgvector#querying[pgvector query guide] provides examples for different distance functions.
+
+[[recipe_insert_vectors]]
+=== Accelerating Vector Searches in Postgres Using Indexing Techniques
+
+==== Problem
+
+You need to accelerate vector searches when working with datasets that contain millions of vectors.
+
+==== Solution
+
+Use indexing techniques to organize vectors for faster similarity searches. PostgreSQL with the pgvector extension supports two indexing methods: IVFFlat and HNSW. This recipe demonstrates both methods using a dataset with around 200,000 text chunks.
+
+[NOTE]
+====
+This recipe uses a large dataset for meaningful performance comparison. You can use the sample dataset from https://www.kaggle.com/datasets/shivamb/real-or-fake-fake-jobposting-prediction[Kaggle] or substitute your own data with similar volume. The key requirement is having enough rows (100,000+) to see indexing benefits.
+====
+
+The practical code uses `psycopg2` to connect to PostgreSQL, `openai` to generate the embeddings, and `pandas` for data preprocessing.
+
+[source,bash]
+----
+pip install psycopg2 openai pandas
+----
+
+First, create a table to hold your job descriptions and their embeddings. The following code creates the necessary table structure and establishes a database connection:
+
+[source, python, indent=0]
+----
+import psycopg2
+from psycopg2 import Error
+
+conn = psycopg2.connect(
+    dbname="rag_cookbook",
+    user="rag_cookbook_user",
+    password="rag_cookbook_user_pw",
+    host="localhost",
+    port="5432",
+)
+
+cur = conn.cursor()
+cur.execute("""CREATE EXTENSION IF NOT EXISTS vector""")
+
+cur.execute(
+    """
+    CREATE TABLE IF NOT EXISTS job_description_table(
+        id integer PRIMARY KEY,
+        text_chunk TEXT,
+        embedding vector(1536)
+    )
+    """
+)
+conn.commit()
+----
+
+
+This recipe compares full-search performance with indexed vector search using the HNSW index and the IVF Flat index.
+
+The following example starts with a full search using cosine similarity. This method sequentially scans all entries without using an index, which makes it the slowest option for large datasets. For small datasets, a full search can sometimes be faster.
+
+[source, python, indent=0]
+----
+query = "I am looking for a job as a data scientist in Berlin."
+client = OpenAI()
+model = "text-embedding-3-small"
+response = client.embeddings.create(input=query, model=model)
+query_embedding = response.data[0].embedding
+
+full_search_sql = f"""
+    EXPLAIN ANALYZE SELECT 1 - (embedding <=> '{str(query_embedding)}')
+    AS cosine_similarity,
+    * FROM job_description_table
+    ORDER BY 1 - (embedding <=> '{str(query_embedding)}') DESC
+    LIMIT 20;
+    """
+
+cur.execute(full_search_sql)
+
+results_full_search = cur.fetchall()
+# [..., ('Planning Time: 13.669 ms',), ('Execution Time: 85.582 ms',)]
+----
+
+This baseline will be used to compare performance against the indexed searches.
+
+[NOTE]
+====
+To ensure the index is actually used, you may need to force Postgres to disable sequential scans. Postgres sometimes falls back to a sequential scan when it is not clear that an index search is the better option.
+====
+
+The following code starts by creating an IVF Flat index and performing a similarity search on it. First, duplicate the existing job description table and create an index on the new table. To analyze the query plan and execution time, run the query in `EXPLAIN ANALYZE` mode.
+
+[source, python, indent=0]
+----
+import psycopg2
+from psycopg2 import Error
+
+ivfflat_sql = f"""
+    DROP TABLE IF EXISTS test_embedding_table;
+    CREATE TABLE test_embedding_table AS
+        SELECT * FROM job_description_table;
+    CREATE INDEX ON test_embedding_table
+        USING ivfflat (embedding vector_cosine_ops)
+        WITH (lists = 30);
+    -- Reduce the number of probes for faster search
+    SET ivfflat.probes = 3;
+    EXPLAIN ANALYZE SELECT 1 - (embedding <=> '{str(query_embedding)}')
+    AS cosine_similarity, *
+    FROM test_embedding_table
+    ORDER BY 1 - (embedding <=> '{str(query_embedding)}') DESC
+    LIMIT 20;
+    """
+
+cur.execute(ivfflat_sql)
+ivfflat_search = cur.fetchall()
+----
+
+
+In this test with a dataset of 200,000 job descriptions, the index search is roughly twice as fast as a full search. This difference becomes even more significant for very large datasets with millions or billions of data points.
+
+The next example uses the HNSW indexing method. This code uses the `vector_cosine_ops` option, which creates an index optimized for cosine similarity search. Alternatively, you can use `vector_ip_ops`, which is optimized for inner product similarity search, or `vector_l2_ops`, which is optimized for Euclidean (L2) distance vector search.
+
+When creating the index, you must set a set of hyperparameters:
+
+* `m` sets the maximum number of connections per layer in the HNSW graph. It defines how many connections each data point has to its neighbors. More connections make the graph denser, which typically speeds up search queries, but increases index build time and memory usage. Typical values range from 16 to 64.
+
+* `ef_construction` controls the size of the dynamic candidate list used during index construction. Higher values usually improve index quality.
+
+* `ef_search` controls how many candidates to consider during search, letting you trade off search accuracy versus speed. Higher values return more accurate results, but produce slower queries.
+
+The following code shows an example query:
+
+[source, python,indent=0]
+----
+import psycopg2
+from psycopg2 import Error
+
+hnsw_test_sql = f"""
+    DROP TABLE IF EXISTS test_embedding_table;
+    CREATE TABLE test_embedding_table AS
+        SELECT * FROM job_description_table;
+    CREATE INDEX ON test_embedding_table
+        USING hnsw (embedding vector_cosine_ops)
+        WITH (m = 16, ef_construction = 200);
+    SET hnsw.ef_search = 50;
+    EXPLAIN ANALYZE SELECT 1 - (embedding <=> '{str(query_embedding)}')
+    AS cosine_similarity, *
+    FROM test_embedding_table
+    ORDER BY 1 - (embedding <=> '{str(query_embedding)}') DESC
+    LIMIT 20;
+"""
+
+cur.execute(hnsw_test_sql)
+hnsw_search = cur.fetchall()
+
+# [..., ('Planning Time: 1.109 ms',), ('Execution Time: 13.927 ms',)]
+----
+
+[[discussion_section_indexing_techniques]]
+==== Discussion
+
+For tables under 100,000 rows, full scans are often fast enough. Skip indexing in this case. Above 1 million rows, indexing becomes essential.
+
+Choose HNSW when query speed is critical and you have sufficient memory (HNSW stores more data in RAM). Choose IVF when memory is constrained or you need faster index building at the cost of slightly slower queries. For most production RAG systems with millions of vectors, HNSW provides the best query performance.
+
+When creating indexes, you can choose different operators based on your similarity metric. The `vector_cosine_ops` option creates an index optimized for cosine similarity search. Alternatively, use `vector_ip_ops` for inner product similarity search, or `vector_l2_ops` for Euclidean (L2) distance vector search.
+
+HNSW indexes require tuning several hyperparameters. The `m` parameter sets the maximum number of connections per layer in the HNSW graph. More connections make the graph denser, which typically speeds up search queries, but increases index build time and memory usage. Typical values range from 16 to 64. The `ef_construction` parameter controls the size of the dynamic candidate list used during index construction. Higher values usually improve index quality. The `ef_search` parameter controls how many candidates to consider during search, letting you trade off search accuracy versus speed. Higher values return more accurate results, but produce slower queries.
+
+Understanding how these indexing methods work helps you tune parameters for your dataset. IVF stands for inverted file. It connects content in the index to its position in a table or document. When building an IVF index, the system divides the vector space and all data points in it into partitions. Each partition has a centroid, and each item belongs to only one partition at a time. When you start a new search, the index first looks for the right partition by comparing the centroids' locations to the user's query, as illustrated in <<how_IVF_works>>.
+
+[[how_IVF_works]]
+.How to query a IVF index by finding the closest centroid
+image::img/ch06_images/indexing_ivf.png[Diagram showing IVF index structure with vector space divided into partitions by centroids. Illustrates first step of approximate nearest neighbor search where query vector is compared to partition centroids to identify the most relevant cluster for detailed search]
+
+Once the closest partition is identified, the search continues within that partition to find the nearest neighbor, as shown in <<how_IVF_works_2>>. The query vector (shown as the blue dot) is compared to the data points in the selected partition to identify the closest match. Note that while the partition's centroid is the closest among all centroids, the actual nearest neighbor could potentially be in an adjacent partition if it's near the partition boundary.
+
+[[how_IVF_works_2]]
+.How to query a IVF index by identifying the closest data point within the partition
+image::img/ch06_images/indexing_ivf_part_2.png[Detailed diagram showing second step of IVF index search within selected partition. Displays query vector compared to data points in the identified cluster to find nearest neighbors, demonstrating how IVF reduces search space for efficient similarity retrieval]
+
+With all indexing methods, you typically trade some accuracy for speed. With an IVF index, the challenge is that when you search within a particular partition, you might miss relevant data points that are close to the edge of a neighboring partition. In practice, that is often acceptable because the accuracy loss is relatively small, while the performance gain is significant.
+
+Another alternative in Postgres is the HNSW index, which builds a multilayer graph. Higher layers contain fewer connections but span longer distances across the data space, acting as shortcuts for efficient search. Lower layers contain denser connections that provide fine-grained navigation.
+
+Think of HNSW as a multilayer map. The highest layer is like a national highway map with very few roads that cover long distances. From that highest layer, you move down to lower layers with more roads and more detail. The bottom layer shows every small local street. <<how_HNSW_works>> illustrates this structure.
+
+[[how_HNSW_works]]
+.How the HNSW layer approach works
+image::img/ch06_images/hsnw_layer_approach.png[Multi-layer graph diagram illustrating Hierarchical Navigable Small World index structure. Shows top layer with long-distance shortcuts between distant nodes, middle layers with medium-range connections, and bottom layer with dense local connections. Demonstrates hierarchical navigation strategy for efficient approximate nearest neighbor search]
+
+Different vector databases use different indexing methods. FAISS supports PQ (Product Quantization), IVF, and HNSW. Annoy uses a tree-based approach, while HNSWlib focuses solely on HNSW. Milvus supports HNSW, IVF, and PQ.
+
+==== See Also
+
+* The https://github.com/pgvector/pgvector#indexing[pgvector indexing documentation] describes HNSW and IVFFlat configuration options and performance characteristics.
+* The https://github.com/nmslib/hnswlib[HNSWlib repository] provides the reference implementation and technical details of HNSW indexing.
+* The https://www.postgresql.org/docs/current/sql-createindex.html[PostgreSQL CREATE INDEX documentation] explains index creation syntax and options.
+
+
+[[recipe_hybrid_search_postgresql]]
+=== Combining Keyword and Similarity Search to Improve Retrieval Accuracy with PostgreSQL
+
+==== Problem
+
+You want to increase the robustness of your retrieval step by combining keyword search and semantic search.
+
+==== Solution
+
+Hybrid search combines keyword search and semantic search into a single result set. This recipe implements hybrid search directly in PostgreSQL by executing both search types in one SQL query and merging the results with weighted scoring.
+
+This recipe assumes you have a PostgreSQL table with embeddings already created. The example reuses the `job_description_table` from <<recipe_insert_vectors>>. If you are following this recipe standalone, you need: (1) A PostgreSQL database with pgvector extension enabled, (2) A table with columns: `id`, `text_chunk`, and `embedding vector(1536)`, and (3) The table populated with at least a few dozen text chunks and their embeddings. See <<recipe_how_to_use_postgresql>> or <<recipe_insert_vectors>> for setup instructions.
+
+The practical example in this recipe uses the `psycopg2` library to connect to PostgreSQL and execute SQL queries.
+
+[source,bash]
+----
+pip install psycopg2-binary openai
+----
+
+The following code reuses the job description table that was ingested into PostgreSQL in <<recipe_insert_vectors>>. The first step copies the job description table and adds a new column with the `tsvector` data type. `tsvector` is designed for full-text search and is used to perform keyword search in a subsequent step.
+
+[source, python, indent=0]
+----
+import psycopg2
+from psycopg2 import Error
+
+conn = psycopg2.connect(
+    dbname="rag_cookbook",
+    user="rag_cookbook_user",
+    password="rag_cookbook_user_pw",
+    host="localhost",
+    port="5432",
+)
+
+cur = conn.cursor()
+
+hybrid_search_table = f"""
+    DROP TABLE IF EXISTS test_embedding_table;
+    CREATE TABLE test_embedding_table AS
+    SELECT *, to_tsvector(text_chunk) AS tsv
+    FROM job_description_table;
+    """
+
+cur.execute(hybrid_search_table)
+----
+
+To run a hybrid search query, you can use a standard SQL `SELECT` statement. In addition to returning rows, the query computes:
+
+* a `text_score` column that stores the full-text search ranking score
+* a `vector_score` column that stores the cosine similarity score
+* a `hybrid_score` column that combines both rankings into a single score
+
+In this example, the combined score is computed by weighting both rankings equally:
+
+* keyword ranking weight: 0.5
+* vector similarity ranking weight: 0.5
+
+You can adjust these weights. For example, to prioritize semantic search, you could use 0.7 for semantic similarity and 0.3 for keyword ranking.
+
+[source, python,indent=0]
+----
+import psycopg2
+from psycopg2 import Error
+from openai import OpenAI
+
+query = "I am looking for a job as a data scientist in Berlin."
+client = OpenAI()
+model = "text-embedding-3-small"
+response = client.embeddings.create(input=query, model=model)
+query_embedding = response.data[0].embedding
+
+hybrid_search_query = f"""
+    WITH ranked_docs AS (
+        SELECT
+            id,
+            text_chunk AS text,
+            ts_rank(tsv, plainto_tsquery('PostgreSQL')) AS text_score,
+            1 - (embedding <=> '{str(query_embedding)}') AS vector_score,
+            ts_rank(tsv, plainto_tsquery('PostgreSQL'))
+            * 0.5 + (1 - (embedding <=> '{str(query_embedding)}')) * 0.5
+            AS hybrid_score
+        FROM test_embedding_table
+        -- Filter for relevant text first
+        WHERE tsv @@ plainto_tsquery('PostgreSQL')
+        ORDER BY hybrid_score DESC
+        LIMIT 10
+    )
+    SELECT * FROM ranked_docs;
+    """
+
+cur.execute(hybrid_search_query)
+results = cur.fetchall()
+----
+
+==== Discussion
+
+
+Keyword search (full-text search) uses PostgreSQL's `tsvector` type and `ts_rank` function to identify documents containing query terms. Semantic search uses cosine similarity to find vectors close to the query embedding. By computing both scores and combining them with weights, you retrieve documents that either contain the exact terms or express similar concepts.
+
+Use hybrid search when exact keyword matches matter for your domain. This includes legal documents (searching for "force majeure" or "indemnification"), technical documentation (searching for specific error codes or API names), medical records (searching for drug names or diagnosis codes), or any scenario where users expect results containing their exact query terms. Hybrid search also helps when queries contain proper nouns, acronyms, or domain-specific terminology that may not be well-represented in embedding spaces.
+
+Do not use hybrid search when semantic meaning is sufficient and exact terms are not critical. For example, searching conversational customer support tickets or general knowledge articles often works better with pure semantic search. Also avoid hybrid search when your keyword search index is not well-tuned, as poor keyword results will drag down the combined score.
+
+The main tradeoff with hybrid search is complexity versus robustness. You must maintain both a text search index and a vector index, tune two sets of parameters, and determine appropriate weights. In return, you get more robust retrieval that handles both semantic queries and exact term matching.
+
+Start with equal weights (0.5 text, 0.5 vector). If users complain that relevant results are missing because they lack the exact term, increase the vector weight to 0.7. If results drift too far from the literal query, increase text weight to 0.7. Different domains may need different default weights: legal and technical applications often need higher text weights, while conversational applications often need higher vector weights.
+
+Hybrid search differs from pure semantic search by also considering exact term matches. It differs from pure keyword search by also finding semantically similar content that may not contain query terms. It differs from SQL filtering (previous recipe) by combining two search methods rather than filtering then searching. Use hybrid search when both literal terms and meaning matter. Use SQL filtering when you need to restrict by metadata. Use pure semantic search when meaning alone is sufficient.
+
+
+==== See Also
+
+* The https://www.postgresql.org/docs/current/textsearch.html[PostgreSQL full-text search documentation] explains keyword search capabilities and configuration.
+* The https://github.com/pgvector/pgvector#querying[pgvector query documentation] provides examples for combining vector and keyword searches.
+* The https://www.postgresql.org/docs/current/queries-union.html[PostgreSQL UNION documentation] describes techniques for merging query results.

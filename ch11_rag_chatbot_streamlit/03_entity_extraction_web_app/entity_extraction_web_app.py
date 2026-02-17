@@ -103,24 +103,22 @@ def extract_entities_from_text(extracted_text):
 
 st.title("Chat with File Upload")
 
-prompt = st.chat_input(
-    "Say something and/or attach a file",
-    accept_file=True,
-    file_type=["pdf"],
+uploaded_file = st.file_uploader(
+    "Upload a PDF file to extract entities",
+    type=["pdf"],
 )
 
-if prompt and prompt.files:
+if uploaded_file:
     with st.spinner("Processing PDF..."):
-        for uploaded_file in prompt.files:
-            if uploaded_file.type == "application/pdf":
-                images = convert_pdf_to_images(uploaded_file)
-                extracted_text = perform_ocr_and_extract_entities(images)
+        if uploaded_file.type == "application/pdf":
+            images = convert_pdf_to_images(uploaded_file)
+            extracted_text = perform_ocr_and_extract_entities(images)
 
-                st.write("Extracted Text from PDF Pages:")
-                for idx, page_text in enumerate(extracted_text, 1):
-                    st.markdown(f"**Page {idx}:**")
-                    st.write(page_text)
+            st.write("Extracted Text from PDF Pages:")
+            for idx, page_text in enumerate(extracted_text, 1):
+                st.markdown(f"**Page {idx}:**")
+                st.write(page_text)
 
-                extracted_data = extract_entities_from_text(extracted_text)
-                st.write("Extracted Entities:")
-                st.write(extracted_data)
+            extracted_data = extract_entities_from_text(extracted_text)
+            st.write("Extracted Entities:")
+            st.write(extracted_data)

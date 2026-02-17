@@ -1,0 +1,1084 @@
+[[chapter_evaluation]]
+== Evaluating RAG Systems
+
+You can't improve what you can't measure. As you tune retrieval parameters, adjust prompts, or switch models, you need metrics that tell you whether changes help or hurt. Without evaluation, optimization becomes guesswork.
+
+RAG evaluation requires different approaches than traditional machine learning. In traditional ML, you train models to learn patterns from labeled data, then test whether they generalize to unseen examples. RAG systems don't learn—they retrieve and generate. Foundation models already generalize across tasks. The question isn't whether the model learned patterns, but whether it retrieves the right information and generates useful answers.
+
+This difference shapes how you evaluate. The key challenge: test questions should cover realistic user intent without appearing word-for-word in the system's data, while remaining answerable from the available knowledge. Good generalization in RAG means handling different phrasings of the same underlying question. Intent matters more than exact wording. This affects test design—you reformulate real queries rather than split existing labeled examples.
+
+Test questions must not appear word-for-word in the system's data but must be answerable from the knowledge base. <<rag_out_of_scope>> illustrates the problem: asking philosophical questions to a system that only knows football rules produces meaningless evaluation results.
+
+[[rag_out_of_scope]]
+.RAG systems should only be evaluated on questions answerable from their knowledge base
+image::img/ch10_images/rag_out_of_scope.png[RAG Out of Scope]
+
+<<context_optimization>> shows two dimensions for improving RAG performance: the RAG pipeline itself (retrieval, chunking, reranking) and the generation model (through fine-tuning or prompt engineering). With so many possible adjustments, you need evaluation metrics to determine which changes actually improve accuracy and relevance.
+
+[[context_optimization]]
+.Different ways to optimize your RAG system
+image::img/ch10_images/context_optimization.png[Context Optimization]
+
+Evaluating generation is challenging because language is subjective. The most scalable approach uses LLMs to evaluate other LLM outputs, similar to an author reviewing their own work. This approach works if you understand its limitations and design evaluations carefully.
+
+For real world RAG systems, the architecture often goes beyond a simple retriever-generator pipeline. You have different kinds of data sources and specialized retrieval components. Every additional module increases complexity and need a tailored evaluation strategy.
+
+Let's make it more tangible: imagine you are an online retailer building a chatbot that provides fashion advice based on articles from a fashion blog. Over time, you plan to evolve this chatbot into a full shopping assistant with access to the product catalog, item availability, order placement, and order tracking.
+
+Your RAG system now has to work with two very different data sources:
+
+* A SQL database backing the webshop, which stores structured application data such as users and products
+* A vector database containing text snippets extracted from the fashion blog
+
+A possible architecture is shown in <<complex_rag_system>>. An agent or orchestration layer decides which data source to query. Database-related questions are routed to a text-to-SQL component, while semantic questions are handled by a retriever connected to the vector database. A final generation step then combines the SQL results and retrieved context to produce a coherent answer.
+
+Now your RAG system consists of multiple components:
+
+. An orchestration agent that decides which data source to query
+. A text-to-SQL translation step
+. A semantic retriever based on vector search
+. A generation module that turns retrieved context into a final answer
+
+Every component can fail independently, so you need evaluation metrics for each part to identify bottlenecks and improve overall performance.
+
+[[complex_rag_system]]
+.An example of a slightly more complex RAG system with two possible retrieval paths
+image::img/ch10_images/complex_rag_system.png[Complex RAG System]
+
+Fortunately, you do not have to start from scratch. The retriever step, implemented as a vector store, is conceptually similar to traditional search engines and classification systems. So there are well-established metrics such as precision and recall that you can reuse. This chapter covers both retrieval metrics adapted from search engines and generation metrics specific to evaluating LLM outputs.
+
+The following recipes guide you through RAG evaluation, from selecting metrics to implementing them. Each recipe includes working code you can adapt to your system. The first recipe helps you choose appropriate metrics based on your system's architecture and available test data. Then you'll learn to generate synthetic test data, implement three core metrics that work without reference answers, and finally incorporate human evaluation for subjective quality dimensions.
+
+You can find all the code examples for this chapter in the https://github.com/polzerdo55862/RAG-with-Python-Cookbook[book's GitHub repository].
+
+=== Choosing the Right Evaluation Metrics for RAG Systems
+
+==== Problem
+
+You need to choose evaluation metrics that accurately measure the performance of the retrieval and generation step of your RAG system.
+
+==== Solution
+
+Evaluating a RAG system requires matching your metrics to the ground truth data you have available. This recipe walks you through a systematic approach to selecting evaluation metrics based on your data constraints, then focuses on three core metrics that work when reference answers are unavailable.
+
+*Match metrics to your ground truth*
+
+Start by identifying what labeled data you have. The answer determines which parts of your system you can measure reliably.
+
+* If you have reference questions paired with correct answers, evaluate the system end to end using answer-based metrics such as semantic similarity or LLM-based correctness scoring. These directly measure whether your system produces the right result.
+
+* If you have labeled retrieval data—questions paired with the document chunks that should be retrieved—evaluate retrieval quality using metrics like context precision and recall. These measure whether your retriever finds the right information.
+
+* If you have neither reference answers nor labeled retrieval data, evaluate generation quality using intrinsic metrics such as faithfulness, answer relevancy, and coherence. These check whether the model stays grounded in its context and produces useful responses.
+
+Regardless of your ground truth situation, choose a small, balanced set of metrics—typically two or three—that cover different parts of the pipeline. In most cases, this means at least one retrieval metric and one generation metric. This prevents you from optimizing one component while silently degrading another.
+
+*Common metric categories*
+
+<<evaluation_of_RAG_systems>> shows the full landscape of RAG evaluation metrics, organized into three groups:
+
+* _Generation metrics:_ Evaluate the generated answer for qualities like faithfulness, correctness, coherence, fluency, and relevance. This category also includes safety metrics covering harmful content or protected material.
+* _Retrieval metrics:_ Assess retrieval quality using measures like recall, precision, and F1 score.
+* _General metrics:_ Capture system behavior such as latency and token usage.
+
+[[evaluation_of_RAG_systems]]
+.An overview of RAG evaluation metrics, divided into generation metrics, retrieval metrics, and general system metrics
+image::img/ch10_images/RAG_evaluation_metrics.png[Evaluation Metrics]
+
+
+Additionally, consider metrics tailored to specialized retrieval components. One example is text to SQL, where classic vector similarity metrics are not applicable. As a starting point, the https://www.youtube.com/watch?v=X_GwjwOKf8c[YouTube video] by Manas Singh provides practical insights into evaluating SQL generation using LLMs as judges.
+
+*Focus on three core metrics*
+
+This chapter focuses on the common scenario where you lack reference answers but need automated evaluation. The approach uses LLM-as-judge—where one language model evaluates the output of another—to assess three metrics that cover the most critical failure modes in standard RAG systems. These metrics assume that the retriever is a vector store returning similar text chunks.
+
+For this case, the three metrics are:
+
+_Context Precision_::
+Measures the proportion of retrieved chunks that are actually relevant to the query. This metric targets the retrieval step and detects noise in your search results (see <<recipe_context_precision>>).
+
+_Faithfulness_::
+Measures whether the generated answer is strictly grounded in the provided context, avoiding hallucinations and unsupported claims. This metric targets the generation step and catches when the model invents information (see <<recipe_faithfulness>>).
+
+_Answer Relevancy_::
+Measures whether the generated answer directly addresses the user's question. This metric targets the generation step and identifies misdirection—cases where the answer is factual but doesn't help the user (see <<recipe_answer_relevancy>>).
+
+<<where_evaluation_happens>> illustrates what the different metrics cover along the RAG pipeline.
+
+[[where_evaluation_happens]]
+.An overview of where evaluation metrics are applied along the RAG pipeline
+image::img/ch10_images/where_evaluation_happens.png[Where Evaluation Happens]
+
+You can find all three metrics implemented in code in the following recipes.
+
+==== Discussion
+
+The three-metric approach works because each metric targets an independent failure mode. A system can retrieve precise chunks but still hallucinate, score high on faithfulness but low on answer relevancy, or answer the question while drawing on irrelevant context. By measuring all three dimensions, you catch issues that single metrics miss.
+
+LLM-as-judge works well for these metrics because language models can compare semantic similarity and verify logical consistency without domain knowledge. The judge doesn't need to know the correct answer—it only determines whether claims are supported by context or whether answers address questions. This makes the approach practical when you lack reference answers but still need automated evaluation at scale.
+
+Use this combination for regression testing after system changes and for continuous production monitoring.
+
+==== Discussion
+
+LLM-as-judge provides reproducible scores but doesn't capture everything users care about. It struggles with subjective qualities like tone or brand voice, which require human evaluation. It can miss issues that frustrate users: overly verbose answers, confusing phrasing, or missing clarifying questions. These limitations worsen when using synthetic test data, which tends to produce easier questions than real users ask.
+
+[TIP]
+====
+Balance automated metrics with human judgment. Use LLM-as-judge for continuous monitoring and high-frequency testing, but supplement it with periodic human review. Human evaluation helps calibrate your metrics, catches issues the automated approach misses, and ensures your system improves on dimensions users actually value.
+====
+
+==== See Also
+
+* https://docs.ragas.io/en/latest/[RAGAS documentation] provides a comprehensive evaluation framework with detailed metric definitions and code examples for RAG systems.
+* https://huggingface.co/learn/cookbook/rag_evaluation[Hugging Face RAG evaluation cookbook] offers an end-to-end tutorial on evaluating RAG systems using synthetic datasets.
+
+[[recipe_evaluating_rag_systems_by_humans]]
+=== Evaluating RAG Systems by Humans
+
+==== Problem
+
+You want to collect explicit user feedback, such as ratings, comparisons, or comments—to evaluate your RAG system based on real user judgments.
+
+==== Solution
+
+To collect user feedback for your RAG system, you can implement several practical approaches depending on your deployment scenario and user base size.
+
+If you have a sufficiently large test user base, provide users with an old and a new version of your RAG system, let both answer the same set of questions, and ask users to rank the results. This pairwise comparison approach can even be used in production. From time to time, you can show users two alternative answers and ask which one they prefer.
+
+In most real-world scenarios, users see only a single question-answer pair. Even then, you can collect valuable explicit feedback through simple signals such as thumbs up or thumbs down. To understand the root cause of poor responses, more detailed input is often required.
+
+<<online_monitoring_of_RAG_systems>> shows an example feedback form. When a user clicks thumbs down, a dialog appears with a short free-text question, optional quick labels, and a submit button.
+
+[[online_monitoring_of_RAG_systems]]
+.An overview of online monitoring of RAG systems
+image::img/ch10_images/online_monitoring_of_RAG_systems.png[Online Monitoring of RAG Systems]
+
+[TIP]
+====
+In <<chapter_rag_web_apps>>, you will find examples of how to build a chatbot with Streamlit. The Streamlit community provides ready-to-use modules for chat applications, including built-in user feedback components. Refer to the https://docs.streamlit.io/develop/api-reference/widgets/st.feedback[Streamlit st.feedback documentation] for details on the supported feedback options.
+====
+
+You can collect passive monitoring signals:
+
+* Timestamps reveal when users interact with your application most frequently.
+* User identifiers help analyze which user groups interact with the system.
+* Response times make it possible to identify bottlenecks along the pipeline and improve performance.
+* Prompt logging allows you to trace how a response was generated.
+* Retrieved documents can be tracked to assess retrieval accuracy.
+* LLM responses can be analyzed to estimate answer relevancy and determine whether the model correctly interpreted the provided context.
+
+Track response time using Python's `time` module to collect timestamps throughout the RAG pipeline. <<improve_response_time_rag_systems>> shows how latency is typically distributed.
+
+[[improve_response_time_rag_systems]]
+.An overview of techniques to improve the response time of RAG systems
+image::img/ch10_images/improve_the_response_time_of_RAG_systems.png[Improve the Response Time of RAG Systems]
+
+==== Discussion
+
+Human evaluators understand context, tone, and intent in ways automated metrics cannot. A thumbs down often points to missing or outdated content in the knowledge base rather than a technical failure. Written feedback is especially valuable because it reveals gaps, unclear phrasing, or unmet expectations that metrics cannot detect.
+
+Use human feedback when you need to measure user satisfaction and subjective quality such as tone, clarity, and usefulness. It is especially valuable when testing major changes like switching models or overhauling retrieval. Pairwise comparisons work well in these cases. Showing users two answers side by side and tracking preferences reveals improvements or regressions that automated metrics often miss.
+
+Human evaluation is too slow and expensive for continuous monitoring. It is also inconsistent, since different people often rate the same answer differently. Use it for targeted reviews, not for every code change. Human feedback captures tone, completeness, and perceived usefulness. Automated metrics provide scale, consistency, and fast detection of technical failures such as hallucinations or irrelevant retrieval. A hybrid approach works best.
+
+Use automated metrics for continuous monitoring and regression testing, and add periodic human reviews after major changes. A practical approach: run automated metrics on every code change or deployment, but conduct human evaluation monthly or after significant system updates. Sample 20-30 responses per review session, involving 2-3 team members or beta users to reduce individual bias. Track both quantitative ratings (thumbs up/down, 1-5 scales) and qualitative feedback (what was wrong, what would help).
+
+==== See Also
+
+* https://lmarena.ai/[Chatbot Arena] demonstrates pairwise evaluation workflows for comparing LLM outputs that can be adapted for RAG system evaluation.
+* https://copilot.microsoft.com/chats[Microsoft Copilot] provides design patterns for lightweight user feedback with ratings, explanations, and contextual logging.
+
+[[recipe_creating_synthetic_data_for_automated_testing]]
+=== Creating Synthetic Data for Automated Testing
+
+==== Problem
+
+You need a set of question-answer pairs that are suitable for testing your RAG solution.
+
+==== Solution
+
+The fastest and most practical approach is to generate synthetic question-answer pairs automatically using an LLM. <<create_synthetic_data>> visualizes this process. Select random text chunks from your vector store, then prompt an LLM to generate questions answerable from those chunks. You can use single chunks or combine multiple chunks as context. This creates test data at scale without manual labeling.
+
+[[create_synthetic_data]]
+.How to create a synthetic dataset
+image::img/ch10_images/create_synthetic_data_2.png[Create Synthetic Data]
+
+The practical part of this recipe uses the RAG mini Wikipedia dataset from Hugging Face. The code snippets use the extracted text chunks from the Wikipedia articles so the LLM has context to generate synthetic questions and answers. In addition to the OpenAI SDK, pandas is used to manipulate and handle text data.
+
+[source,bash]
+----
+pip install pandas openai pydantic
+----
+
+The following code loads the RAG mini Wikipedia dataset from Hugging Face to get a set of text chunks. You don't need to store these chunks in a vector store for this example; the snippet simply simulates that this content is part of your vector store. In other words, it represents the knowledge available to your RAG system's retriever.
+
+[source, python,indent=0]
+----
+# Example usage
+import pandas as pd
+
+df = pd.read_parquet(
+    "hf://datasets/rag-datasets/rag-mini-wikipedia/data/"
+    "passages.parquet/part.0.parquet"
+)
+
+docs_list = df.passage.to_list()
+----
+
+If you check the dataset on Hugging Face, you will notice it has two parts. The first is a raw text corpus from Wikipedia articles. The second is a set of prebuilt question-answer pairs created from those Wikipedia snippets. Because this recipe shows how to generate such question-answer pairs automatically, you ignore the second part.
+
+<<image_doc_list>> shows the loaded data structure from Hugging Face. You get a list of 3,200 strings. Each string is a text snippet from a Wikipedia article.
+
+[[image_doc_list]]
+.Loaded data from Hugging Face
+image::img/ch10_images/load_test_dataset_from_huggingface.png[Doc List]
+
+The next step is to randomly pick text chunks from the document list and instruct an LLM to generate realistic questions and answers based on the information in those chunks.
+
+In the following code, you can see the prompt used to instruct the LLM. The prompt has two parts:
+
+. An instruction section telling the model what to do
+. The context the model should use to generate questions and answers
+
+The instruction part tells the model to think like a normal user and come up with natural queries that a real user would ask. It should also generate an answer for each question. Because the question is derived from the context, the context should contain the answer.
+
+[source, python,indent=0]
+----
+from pydantic import BaseModel
+
+QA_generation_prompt = """
+    Your task is to generate a question and its corresponding answer
+    based on the provided context.
+
+    The question should be:
+    - Direct and focused, seeking a specific factual piece of
+        information present in the context.
+    - Formulated as a natural query a user might input into a
+        search engine.
+    - Independent of the context, meaning it should not contain
+        phrases like "according to the passage" or "in the context".
+
+    The answer should be:
+    - A concise and accurate response directly extracted or inferred
+        from the context.
+
+    Present your output in the following format:
+
+    Output:
+    Question: (Your concise, fact-based question)
+    Answer: (The direct answer to the question)
+
+    Context: {context}\n
+    Output:"""
+----
+
+The next code snippet defines a response template as a Pydantic model. The returned Python object is a question-answer pair, with both fields represented as strings. The second part of the snippet then picks five random text chunks from the overall dataset, iterates over them, and generates question-answer pairs in the specified Pydantic format.
+
+[source, python,indent=0]
+----
+from openai import OpenAI
+from pydantic import Field
+import random
+
+# Initialize the OpenAI client with your API key
+client = OpenAI()
+
+class QuestionAnswerPairs(BaseModel):
+    question: str = Field(
+        description="A factoid question about the context."
+    )
+    answer: str = Field(
+        description="The answer to the factoid question."
+    )
+
+question_answer_pairs = []
+
+random_text_chunks = random.sample(docs_list, 5)
+
+for text_chunk in random_text_chunks:
+    # generate hypothetical questions using the GPT-5.2 model
+    completion = client.chat.completions.parse(
+        messages=[
+            {
+                "role": "user",
+                "content": QA_generation_prompt.format(context=text_chunk),
+            }
+        ],
+        model="gpt-5.2",
+        response_format=QuestionAnswerPairs,
+    )
+
+    question_answer_pair = (
+        completion.choices[0].message.parsed.model_dump()
+    )
+    question_answer_pair["context"] = text_chunk
+    question_answer_pairs.append(question_answer_pair)
+----
+
+<<image_synthetic_question_answer_pairs_jupyter>> shows the output. It contains five question-answer pairs for the randomly selected contexts. Each item is a dictionary containing the question, the answer, and the context used.
+
+[[image_synthetic_question_answer_pairs_jupyter]]
+.Synthetic question-answer pairs
+image::img/ch10_images/synthetic_question_answer_pais_jupyter.png[Create a Synthetic Question Answer Pairs]
+
+These questions can now be used to evaluate the retriever, the generator, and overall system performance. Because the questions were derived from the actual data, the RAG system should be able to find the answer in the existing content. If it cannot, that is a clear sign that something is wrong.
+
+==== Discussion
+
+LLM-generated questions are guaranteed answerable from the knowledge base because they derive directly from stored chunks. This creates a reliable baseline for testing system changes: if your RAG system can't answer synthetic questions, something is broken. The approach scales since you can generate hundreds of test cases automatically.
+
+Use synthetic test generation for continuous testing, especially when your knowledge base changes frequently. It catches obvious failures after code changes such as model updates, prompt modifications, or parameter adjustments. Synthetic data measures technical correctness—whether the system retrieves relevant chunks and generates grounded answers. It's valuable in early development when you need fast feedback on basic functionality.
+
+Don't use synthetic data as your only evaluation. Synthetic questions are systematically easier than real queries because they derive from clean, focused chunks. Real users phrase questions ambiguously, combine intents, reference conversation context, or ask about edge cases. Synthetic questions don't capture query difficulty distribution—they test ideal conditions, not the long tail of ambiguous or poorly phrased questions.
+
+Also avoid synthetic data for user experience dimensions like clarity, tone, or helpfulness. These require human judgment. Don't rely on it for multi-turn conversations—generated questions are single-turn and miss conversation dynamics. Supplement with periodic analysis of production queries.
+
+*Practical guidance for synthetic data generation*
+
+Generate at least 50-100 synthetic question-answer pairs to cover diverse topics in your knowledge base. Five examples, as shown in this recipe's code, are enough for prototyping but insufficient for reliable evaluation. Aim for coverage across:
+
+* Different document types in your knowledge base (if you have articles, FAQs, and technical specs, sample from each)
+* Various question complexities (factual lookups, comparisons, multi-hop reasoning)
+* Edge cases near knowledge boundaries
+
+Manually review a sample of 10-20 generated pairs to ensure quality. Check that questions sound natural and answers are accurate. If you find systematic issues—overly complex phrasing, incorrect answers, or trivial questions—adjust your generation prompt and regenerate.
+
+Regenerate test data when you significantly update your knowledge base. Synthetic tests only catch issues if they reflect current content. If you add major new sections or restructure documents, old test questions may no longer align with retrieval patterns.
+
+==== See Also
+
+* https://huggingface.co/learn/cookbook/rag_evaluation[Hugging Face RAG evaluation cookbook] demonstrates how to evaluate RAG systems using synthetic datasets with step-by-step implementation examples.
+* https://docs.ragas.io/en/latest/getstarted/rag_testset_generation/[RAGAS test set generation] provides techniques for generating synthetic questions and ground truth answers from your knowledge base.
+
+[[recipe_context_precision]]
+=== Evaluating the Retriever Step by Calculating Context Precision@k
+
+==== Problem
+
+You want to evaluate the relevance of the retrieved text chunks by comparing them to the user's question.
+
+==== Solution
+
+To calculate context precision, follow these steps as shown in <<image_context_precision>>:
+
+1. Pick a random question from your test dataset.
+2. Let the question be answered by your RAG system. Capture the generated answer and the text chunks that were used.
+3. Compare each retrieved text chunk to the answer and let an LLM decide whether the chunk was actually helpful in producing that answer, or whether it was irrelevant.
+4. Calculate context precision by dividing the number of relevant chunks by the total number of retrieved chunks. For example, if four chunks were included in the prompt and only two were relevant, the precision score is 0.5.
+
+[[image_context_precision]]
+.How to calculate the Context Precision@k step by step
+image::img/ch10_images/how_to_calculate_the_k_context_precision.png[How to Calculate the Context Precision]
+
+The formula below defines the context precision score. It calculates the proportion of the k retrieved text chunks that are actually helpful for generating the final answer.
+
+stem:[\text{Context Precision@k} = \frac{\sum_{k=1}^{k} (\text{Precision@k} \times v_k)}{\text{Total number of relevant items in the top } k \text{ results}}]
+
+* stem:[K] represents the total number of chunks in the retrieved_contexts.
+* stem:[v_k] is a binary flag indicating relevance at rank stem:[k] (1 if the chunk is relevant, 0 otherwise).
+
+To judge whether a text chunk was relevant for answering the question, several approaches exist:
+
+One approach uses an LLM to compare the retrieved context to a reference context. In this case, you have a golden dataset that specifies, for each question, which context you expect to be retrieved and which context is relevant.
+
+Another approach uses an LLM to compare the retrieved context to the generated answer. In this case, you do not need a golden reference dataset for the expected context. Instead, you compare the generated answer to the context and let the LLM decide whether any of the retrieved chunks were completely irrelevant to producing the answer. This provides an indication that some retrieved chunks were noise.
+
+As a third approach, which is not LLM-based, you can compare context with the answer or context with the question using non-LLM methods. Traditional techniques include string-similarity calculations or keyword-overlap metrics to estimate relevance without involving an LLM.
+
+This recipe uses the second approach—comparing retrieved context to the generated answer using an LLM. Here is a simple example around the Mona Lisa:
+
+Question::
+Who painted the Mona Lisa?
+
+Context::
+The Mona Lisa is a 16th-century oil painting attributed to Italian polymath Leonardo da Vinci.
+
+Answer::
+The Mona Lisa was painted by Leonardo da Vinci.
+
+In this case, it is clear that the context helped the model produce a suitable answer. If you used k retrieved chunks and one chunk was about a completely different painting or a different artist, the LLM would likely not use that information. That chunk would be rated as not helpful (verdict = 0).
+
+The practical part of this recipe packages this concept into a few code snippets. To make the decision, the code needs access to an LLM. This case is using one of OpenAI's models and OpenAI's SDK. The code also uses Pydantic to ensure that the model response contains only:
+
+* a verdict (whether the context chunk was helpful), and
+* a reason (a short explanation as a string).
+
+[source,bash]
+----
+pip install openai pydantic pandas
+----
+
+The following code uses a sample question, answer, and retrieved context. The code snippet below shows the sample data used for the following steps.
+
+[source, python,indent=0]
+----
+question = "What is the capital of France?"
+answer = "The capital of France is Paris."
+retrieved_contexts = [
+    """France, a country in Western Europe, is known for
+    its capital city, Paris, which is a major European city
+    and a global center for art, fashion, and culture.""",
+    """Paris is the capital city of France and is renowned
+    for its historical landmarks such as the Eiffel Tower
+    and the Louvre Museum.""",
+    """The Amazon rainforest is the world's largest tropical
+    rainforest, spanning across nine South American countries
+    and supporting immense biodiversity."""
+]
+----
+
+
+The next step evaluates how valuable each text chunk in the context was for answering the question.
+
+The following code defines a Pydantic model called `Verification` that contains:
+
+* `reason` (string)
+* `verdict` (integer, either 1 or 0)
+
+A verdict of 1 means the text chunk was helpful for the LLM; 0 means it was not.
+
+For each text chunk, the code iterates over the retrieved chunks, sends a prompt, requests the response in the `Verification` format, and saves the results in a list of verifications.
+
+[source, python,indent=0]
+----
+from textwrap import dedent
+from pydantic import BaseModel, Field
+from openai import OpenAI
+
+def context_relevance_verification(question, answer, retrieved_contexts):
+    # Pydantic model for verification
+    class Verification(BaseModel):
+        reason: str = Field(..., description="Reason for verification")
+        verdict: int = Field(
+            ..., description="Binary (0/1) verdict of verification"
+        )
+
+    # Define the prompt for context relevance verification
+    context_relevance_prompt = dedent('''
+        Given a question, an answer, and a context, verify if the
+        context was instrumental in deriving the given answer. Provide
+        a detailed reason for your assessment and a binary verdict: "1"
+        if the context is useful and "0" if it is not.
+
+        Input:
+        Question: "{question}",
+        Answer: "{answer}",
+        Context: "{context}"
+        ''')
+
+    list_of_verifications = []
+
+    # Iterate through each question-answer pair and its context
+    for retrieved_context in retrieved_contexts:
+        prompt = context_relevance_prompt.format(
+                question=question,
+                answer=answer,
+                context=retrieved_context)
+
+        client = OpenAI()
+        completion = client.chat.completions.parse(
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            model="gpt-5.2",
+            response_format=Verification,
+        )
+
+        verification = completion.choices[0].message.parsed.model_dump()
+        verification["question"] = question
+        verification["answer"] = answer
+        verification["retrieved_context"] = retrieved_context
+
+        list_of_verifications.append(verification)
+    return list_of_verifications
+----
+
+<<image_context_precision_verification>> shows the output when applied to the sample data. In the sample, the user asks for the capital of France. The retrieved context consists of three text chunks: the first describes France and mentions its capital, the second describes Paris as the capital city, and the third discusses the Amazon rainforest—completely irrelevant to the question. The LLM assigns verdict values of 1 to the first two chunks and 0 to the irrelevant third chunk.
+
+
+[[image_context_precision_verification]]
+.Example output of context relevance verification
+image::img/ch10_images/output_context_precision_verification.png[Create Context Relevance Verification]
+
+With a list of verdicts, you can now calculate context precision, which is the proportion of relevant chunks relative to the total number of retrieved chunks. The next code snippet defines a simple function that calculates this relevance score.
+
+[source, python,indent=0]
+----
+import pandas as pd
+
+def calculate_context_relevance_score(list_of_verifications):
+    verdict_list = pd.DataFrame(list_of_verifications)["verdict"].to_list()
+
+    # Add small epsilon to avoid division by zero if no chunks are relevant
+    denominator = sum(verdict_list) + 1e-10
+    numerator = sum(
+        [
+            (sum(verdict_list[: i + 1]) / (i + 1)) * verdict_list[i]
+            for i in range(len(verdict_list))
+        ]
+    )
+    score = numerator / denominator  # e.g., score = 0.835 for [1,0,1]
+    return score
+----
+
+[[discussion_context_precision]]
+==== Discussion
+
+Context precision evaluates whether your retriever surfaces relevant information. It treats retrieval as ranking: given a query, return chunks that help answer the question. Irrelevant chunks waste tokens, increase cost, and confuse the generation model. The metric borrows from information retrieval because vector similarity search operates like traditional search engines—both rank documents by relevance. Metrics like Precision@k, Recall@k, and F1@k transfer naturally to RAG evaluation.
+
+LLM-as-judge compares each retrieved chunk against the generated answer, determining whether that chunk contributed. This reveals retrieval noise—chunks that matched semantically but didn't provide useful information.
+
+Use context precision when diagnosing retrieval problems. If users complain about wrong answers and you suspect the retriever isn't finding correct information, context precision reveals whether irrelevant chunks dominate. It's valuable when tuning retrieval parameters (top-k values, similarity thresholds, reranking strategies). Context precision matters when optimizing for cost and latency. Reducing k from 10 to 3 cuts token usage but only helps if those 3 chunks contain essential information. Track context precision while adjusting k.
+
+<<table_context_precision_interpretation>> summarizes how to interpret context precision scores alongside answer quality:
+
+[[table_context_precision_interpretation]]
+.How to interpret context precision scores
+[cols="2,3",options="header"]
+|===
+|Scenario |Interpretation
+
+|High precision + high answer quality
+|Retriever works well.
+
+|High precision + low answer quality
+|Generation problems (hallucination, poor reasoning).
+
+|Low precision + high answer quality
+|First chunk suffices, later chunks add noise—consider reducing k.
+
+|Low precision + low answer quality
+|Retrieval failure. Retrieved chunks don't contain needed information. Investigate embedding model, chunking strategy, or knowledge base content.
+|===
+
+The following list provides an overview of common retrieval metrics, beyond context precision:
+
+- Precision@k: fraction of top k results that are relevant
+- Recall@k: fraction of relevant results retrieved in top k
+- F1@k: balanced precision and recall score
+- MRR: how early the first relevant result appears
+- AP: accounts for relevance and ranking position
+- DCG@k: weights relevant results higher when earlier
+- NDCG@k: normalizes DCG for cross-query comparison
+
+Use precision when concerned about irrelevant content. Use recall when worried about missing information. F1@k balances both but doesn't indicate which problem dominates.
+
+Ranking-aware metrics like MRR and NDCG@k matter when result order affects generation quality. If your model primarily uses the first few chunks, poor ranking hurts even if all relevant chunks exist.
+
+[TIP]
+====
+ROUGE and BLEU metrics, commonly used in summarization and translation, aren't well-suited for evaluating RAG retrievers. They measure n-gram overlap, which doesn't capture semantic relevance in the same way that precision and recall metrics do.
+====
+
+==== See Also
+
+* https://docs.arize.com/phoenix/evaluation/how-to-evals/running-pre-tested-evals/retrieval-rag-relevance[Phoenix retrieval evaluation] provides tutorials on evaluating retriever relevance for RAG applications.
+* https://www.pinecone.io/learn/offline-evaluation/[Pinecone retrieval metrics guide] explains Precision@k, Recall@k, F1@k, MRR, AP, and NDCG@k with definitions and use cases.
+* https://docs.ragas.io/en/latest/concepts/metrics/context_precision/[RAGAS context precision] implements context precision and other retrieval metrics with accessible source code.
+
+[[recipe_faithfulness]]
+=== Evaluate Faithfulness During Generation using LLM-as-a-Judge
+
+==== Problem
+
+You want to evaluate whether the RAG system response is grounded in the information returned by the retriever.
+
+==== Solution
+
+To calculate faithfulness, follow these steps as shown in <<image_faithfulness_rag>>:
+
+1. Use an LLM to break down the RAG system's answer into individual claims.
+2. Iterate over all claims and check whether each claim is supported by any information in the retrieved context.
+3. Calculate the faithfulness score as the proportion of supported claims, divided by the total number of derived claims.
+
+[[image_faithfulness_rag]]
+.How to calculate the faithfulness of a RAG system response
+image::img/ch10_images/faithfulness_rag.png[Faithfulness RAG]
+
+The first step provides the question and answer to the model and decomposes the answer into distinct claims.
+
+Below is an example question and answer, and the statements an LLM would derive in this case:
+
+Question::
+What are the main ingredients in a chocolate chip cookie?
+
+Answer::
+They typically include flour, sugar, butter, eggs, and chocolate chips. Some recipes also call for vanilla extract or baking soda.
+
+From this answer, the model derives standalone statements, seven in total:
+
+- Chocolate chip cookies typically include flour.
+- Chocolate chip cookies typically include sugar.
+- Chocolate chip cookies typically include butter.
+- Chocolate chip cookies typically include eggs.
+- Chocolate chip cookies include chocolate chips.
+- Some recipes call for vanilla extract.
+- Some recipes call for baking soda.
+
+Next, the process compares each claim with the retrieved context and determines which claims are supported. Claims not found in the context are considered unsupported.
+
+
+The faithfulness score is calculated as follows:
+
+stem:[\text{Faithfulness Score} = \frac{\text{Number of claims in the response supported by the retrieved context}}{\text{Total number of claims in the response}}]
+
+The code in this recipe needs access to an LLM. Here, it again uses an OpenAI model to break down answers into individual claims.
+
+This recipe also uses the OpenAI SDK and the Pydantic library to define the model's response schema as a Pydantic model.
+
+[source,bash]
+----
+pip install openai pydantic pandas
+----
+
+The following code defines a function that instructs the model to decompose an answer into one or more fully understandable statements. The output is a Python object that follows a Pydantic model schema. In this case, it contains a `statements` attribute holding a list of strings.
+
+[source, python,indent=0]
+----
+from textwrap import dedent
+from pydantic import BaseModel, Field
+from openai import OpenAI
+
+def decompose_answer(question, answer):
+    # Initialize the OpenAI client
+    client = OpenAI()
+
+    statement_prompt = """
+    Given a question and an answer, analyze the complexity of each
+    sentence in the answer. Break down each sentence into one or more
+    fully understandable statements. Ensure that no pronouns or
+    ambiguous references are used in any statement. Output the
+    decomposed statements as a list of strings.
+
+    Question: {question}
+    Answer: {answer}
+    """
+
+    prompt = statement_prompt.format(question=question, answer=answer)
+
+    class Statements(BaseModel):
+        """Structured response for statement extraction."""
+
+        statements: list[str] = Field(
+            description="List of decomposed statements."
+        )
+
+    completion = client.chat.completions.parse(
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        model="gpt-5.2",
+        response_format=Statements,
+    )
+
+    statements = completion.choices[0].message.parsed.statements
+    return statements
+----
+
+In the next step, the following code applies the function to a sample question/answer pair. The question is about the Amazon rainforest, and the answer describes it as one of the largest tropical rainforests, including its geographic extent.
+
+[source, python,indent=0]
+----
+question = """Describe the geographical extent and ecological
+significance of the Amazon rainforest."""
+
+answer = dedent("""
+The Amazon rainforest, the world's largest tropical rainforest,
+covers significant territory across nine South American countries.
+This vast area is renowned for its immense biodiversity, supporting
+millions of different plant and animal species. While it plays a
+crucial role in the global climate by absorbing substantial amounts
+of carbon dioxide, its impact on the overall oxygen production of
+the Earth is often overstated.
+""")
+----
+
+<<image_decompose_question_answer>> shows the output. In this example, nine statements have been extracted from the answer text.
+
+[[image_decompose_question_answer]]
+.How to decompose an answer into claims
+image::img/ch10_images/output_decomposed_question.png[How to Decompose an Answer into Claims]
+
+The next step is comparing each of those statements against the retrieved contexts. For each statement, you check whether it is directly supported by the information in the context provided to the LLM. This allows you to determine whether the answer is truly grounded in the retrieved documents or whether the model has introduced unsupported information.
+
+The following code snippet shows how you can use the LLM itself to perform these checks.
+
+[source, python,indent=0]
+----
+from pydantic import BaseModel, Field
+from textwrap import dedent
+from openai import OpenAI
+
+def judge_faithfulness(statement, context):
+
+    # Initialize the OpenAI client
+    client = OpenAI()
+
+    faithfulness_judge_prompt = dedent(
+        """
+        Your task is to judge the faithfulness of a statement based
+        on the given context. You must return a verdict as 1 if the
+        statement can be directly inferred from the context, or 0 if
+        the statement cannot be directly inferred. Explain your
+        reasoning.
+
+        Context:
+        {context}
+
+        Statement:
+        {statement}
+
+        Answer::
+        Reason: (Explain your reasoning)
+        Verdict: (1 or 0)
+        """
+    )
+
+    class StatementFaithfulness(BaseModel):
+        """Structured response for statement extraction."""
+
+        statement: str = Field(description="Decomposed statement.")
+        reason: str = Field(
+            description="Reasoning for the faithfulness judgment."
+        )
+        verdict: int = Field(
+            description="1 if the statement is faithful, 0 otherwise."
+        )
+
+    prompt = faithfulness_judge_prompt.format(
+        statement=statement, context=context
+    )
+
+    completion = client.chat.completions.parse(
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        model="gpt-5.2",
+        response_format=StatementFaithfulness,
+    )
+
+    statement_faithfulness = (
+        completion.choices[0].message.parsed.model_dump()
+    )
+    return statement_faithfulness
+----
+
+The next snippet runs the previously defined faithfulness score judge.
+
+[source, python,indent=0]
+----
+statements_faithfulness = []
+
+context = dedent(
+    """
+    The Amazon rainforest is the largest tropical rainforest in the
+    world, covering parts of nine South American countries. It is
+    known for its incredible biodiversity, housing millions of species
+    of plants, insects, birds, and other animals. The forest plays a
+    crucial role in regulating the Earth's climate by absorbing vast
+    amounts of carbon dioxide.
+    """
+)
+
+for statement in statements:
+    statement_faithfulness = judge_faithfulness(
+        statement=statement, context=context
+    )
+    # Append the statement faithfulness to the list
+    statements_faithfulness.append(statement_faithfulness)
+----
+
+<<image_faithfulness>> shows an example output. The code produces a list of dictionaries, each containing a statement, a verdict indicating whether the claim is supported by the context, and a brief explanation from the model in the `reason` field. The verdict shows which claims are grounded in the retrieved documents and why.
+
+[[image_faithfulness]]
+.Using the LLM to evaluate faithfulness
+image::img/ch10_images/output_statements_faithfullness.png[How to Use the LLM to Evaluate the Faithfulness]
+
+The last step uses these verdicts to calculate the final faithfulness score. The faithfulness score is the ratio of supported claims to the total number of claims in the answer. Higher scores indicate that the RAG system stays grounded and provides information without adding unsupported claims.
+
+[source, python,indent=0]
+----
+import pandas as pd
+
+statements_faith_df = pd.DataFrame(statements_faithfulness)
+
+number_of_claims = len(statements_faith_df["verdict"])  # 7
+number_of_claims_in_context = statements_faith_df["verdict"].sum()  # 6
+faithfulness_percentage = (
+    number_of_claims_in_context / number_of_claims
+) * 100
+----
+
+Aim for faithfulness scores above 80 percent in production systems. This indicates that the RAG system reliably grounds its answers in the retrieved context. Scores below 70 percent suggest potential hallucination issues, where the system generates claims that are not supported by the retrieved documents.
+
+This 80% threshold balances reliability and usefulness. Scores of 85% or higher indicate strong grounding—the system rarely invents information. Scores between 70-80% warrant investigation: review failed cases to identify whether issues are systematic (e.g., hallucinations on specific topics) or random. If you're consistently below 70%, consider adjusting your generation prompt to emphasize grounding, lowering temperature, or switching to a model with better instruction-following.
+
+==== Discussion
+
+LLM-as-judge fits well for the faithfulness metric because the task is clear: determine whether a claim is supported by text, requiring only reading comprehension rather than world knowledge.
+
+Use faithfulness to detect hallucinations in high-stakes domains (medical, financial, legal) where unsupported claims create liability risk. Faithfulness also evaluates changes to the generation step—if you switch models, adjust prompts, or modify temperature, it reveals whether the new configuration stays grounded.
+
+High faithfulness doesn't guarantee good answers. The system might return grounded but irrelevant information. Pair faithfulness with answer relevancy (does the answer address the question?) and context precision (did we retrieve the right information?). These three metrics move independently: improving retrieval doesn't guarantee better faithfulness if the model still hallucinates, and perfect faithfulness doesn't prevent low answer relevancy if the model focuses on wrong aspects of the context.
+
+The tradeoff is faithfulness versus informativeness. High faithfulness models are conservative, stating only what appears explicitly in context. For most RAG applications, prioritize faithfulness—users expect reliable information retrieval. Target scores above 80% in production; scores below 70% indicate frequent unsupported claims.
+
+[sidebar]
+****
+*Understanding framework implementations*
+
+The most reliable way to understand how evaluation frameworks implement faithfulness is to inspect their source code. In Visual Studio Code, you can jump directly into the implementation by holding Ctrl and clicking the `faithfulness` function imported from RAGAS, as shown in <<browse_the_framework_code>>.
+
+[[browse_the_framework_code]]
+.How to browse the framework code
+image::img/ch10_images/browse_the_framework_code.png[Browse the Framework Code]
+
+By navigating through the code, you'll eventually find a class called `NLIStatementPrompt`. <<statements_generator_class_code>> shows how it's defined and provides insight into how these frameworks define their evaluation metrics.
+
+[[statements_generator_class_code]]
+.The statements generator class in the RAGAS library
+image::img/ch10_images/statements_generator_class_code.png[Statements Generator Class Code]
+****
+
+
+==== See Also
+
+* https://docs.ragas.io/en/latest/concepts/metrics/available_metrics/faithfulness/[RAGAS faithfulness metric] provides detailed explanation and implementation of faithfulness evaluation for RAG systems.
+* https://github.com/langchain-ai/openevals[OpenEvals repository] offers predefined evaluation prompts for metrics including correctness, conciseness, and groundness.
+* https://docs.smith.langchain.com/evaluation[LangSmith evaluation guide] demonstrates how to evaluate RAG applications using LangSmith and OpenEvals.
+
+[[recipe_answer_relevancy]]
+=== Evaluating the Response Relevancy of Your RAG System
+
+==== Problem
+
+You want an automated way to measure how well your RAG system's final answer addresses the user's original question.
+
+==== Solution
+
+
+The response relevancy score is calculated in five steps:
+
+. Run the user's question through your RAG system to generate a response.
+. Use an LLM to analyze the answer and derive a set of artificial questions that could be asked to elicit the same content reflected in the answer.
+. Generate embeddings for both the original user question and each artificial question.
+. Compute the cosine similarity between the embedding of the original user question (E_0) and the embedding of each artificial question (E_{g_i}).
+. Calculate the average of the cosine similarity scores across all artificial questions to get the final relevancy score.
+
+The formula for answer relevancy is as follows:
+
+stem:[\text{Answer Relevancy} = \frac{1}{N} \sum_{i=1}^{N} \text{cosine similarity}(E_{g_i}, E_o)]
+
+Where:
+
+* latexmath:[E_{g_i}]: Embedding of the latexmath:[i^{th}] generated question.
+* latexmath:[E_o]: Embedding of the original user question.
+* latexmath:[N]: Number of generated questions (default is 3).
+
+<<answer_relevancy>> visualizes the process for calculating answer relevancy in RAG systems.
+
+[[answer_relevancy]]
+.Overview of the process for calculating answer relevancy in RAG systems
+image::img/ch10_images/answer_relevancy.png[Answer Relevancy]
+
+For the technical implementation in this recipe, you need an embedding model and an LLM. In this example, both come from OpenAI and are accessed using the OpenAI SDK. To ensure that the artificially generated questions are returned as a list of strings, define a Pydantic model. You'll also use NumPy to calculate cosine similarity between embedding vectors.
+
+[source,bash]
+----
+pip install openai pydantic numpy pandas
+----
+
+In the first two steps, you use an LLM to generate artificial questions derived from the RAG system's answer and rate each question as committal or non-committal.
+
+A question is non-committal if the answer does not provide relevant, valuable information for it. A non-committal value of 0 is good, because it means the answer contains relevant information for the question.
+
+<<table_non_committal_examples>> shows some sample questions and responses with their non-committal scores.
+
+[[table_non_committal_examples]]
+.Examples of Non-Committal Question Assessment
+[cols="2,2,1,2",options="header"]
+|===
+|Generated question |Response |Non-committal score |Explanation
+
+|What is the capital of France?
+|The capital of France is Paris.
+|0
+|Answer directly addresses the question with specific information.
+
+|How are you feeling today?
+|As a large language model, I'm not capable of experiencing emotions.
+|1
+|Answer acknowledges the question but provides no relevant information.
+
+|What is the current price of Tesla stock?
+|I can't provide real-time stock prices.
+|1
+|Answer does not provide the requested information.
+|===
+
+The following code snippet performs both steps in a single run. It takes the answer, generates suitable questions based on the answer, and then assesses whether the answer is relevant and helpful in addressing each generated question.
+
+[source, python,indent=0]
+----
+from textwrap import dedent
+
+response_relevance_prompt = dedent("""
+    Generate three relevant questions for the following answer
+    and indicate if the answer is noncommittal.
+
+    Output:
+    Question: [Generated Question]
+    Noncommittal (1=Yes, 0=No): [0 or 1]
+
+    An answer is considered noncommittal if it is evasive, vague,
+    or ambiguous (e.g., "I don't know," "Maybe," "It depends").
+
+    Answer: {response}
+    """)
+----
+
+Define a Pydantic model to ensure the code reliably returns a list of dictionaries in a consistent format. The model defines a GenerateQuestions class that contains a list of items; each item has a question and a `noncommittal` score, which gets the value 1 if the answer is non-committal, 0 if it is committal.
+
+[source, python,indent=0]
+----
+from pydantic import BaseModel, Field
+
+prompt = response_relevance_prompt.format(response=response)
+
+class GeneratedQuestion(BaseModel):
+    question: str = Field(description="Generated question.")
+    noncommittal: int = Field(
+        description="1 if the answer is noncommittal, 0 otherwise."
+    )
+
+class GeneratedQuestions(BaseModel):
+    questions: list[GeneratedQuestion] = Field(
+        description="List of generated questions and noncommittal status."
+    )
+
+client = OpenAI()
+
+completion = client.chat.completions.parse(
+    messages=[
+        {
+            "role": "user",
+            "content": prompt,
+        }
+    ],
+    model="gpt-5.2",
+    response_format=GeneratedQuestions,
+)
+
+generated_questions = (
+    completion.choices[0].message.parsed.model_dump()["questions"]
+)
+----
+
+Next, generate embeddings for all artificially generated questions as well as the original user query. The following function creates embeddings using an OpenAI embedding model.
+
+[source, python,indent=0]
+----
+from openai import OpenAI
+
+client = OpenAI()
+
+def create_embeddings(text_chunk, client):
+    embed_model = "text-embedding-3-small"
+    embedding = (
+        client.embeddings.create(input=[text_chunk], model=embed_model)
+        .data[0]
+        .embedding
+    )
+    return embedding
+----
+
+[TIP]
+====
+A cosine similarity score close to 1 indicates that the two vectors are identical or point in the same direction, meaning the semantic content of both questions is very similar. Mathematically, the score can be negative, but this is rare with modern embedding models unless the texts are intentionally dissimilar or the embeddings are poor.
+====
+
+Next, use the previously defined functions to generate embeddings for the artificial questions and the original user query.
+
+In this example, the user asks for the capital of France, and the system answers that the capital of France is Paris.
+
+Then calculate the cosine similarity between each artificial question and the user's question. This adds new attributes to each question object (or dictionary), such as the embedding vector and the computed cosine similarity.
+
+[source, python,indent=0]
+----
+import numpy as np
+import pandas as pd
+
+user_question_embedding = create_embeddings(user_input, client)
+cosine_sims = []
+
+for generated_question in generated_questions:
+    generated_question["embedding"] = create_embeddings(
+        generated_question["question"], client
+    )
+
+    generated_question["cosine_sim"] = np.dot(
+        user_question_embedding, generated_question["embedding"]
+    ) / (
+        np.linalg.norm(user_question_embedding)
+        * np.linalg.norm(generated_question["embedding"])
+    )
+----
+
+<<image_response_relevancy_generated_questions>> shows the example structure of a generated question object with embedding and cosine similarity.
+
+[[image_response_relevancy_generated_questions]]
+.Example structure of a generated question object with embedding and cosine similarity
+image::img/ch10_images/response_relevancy_generate_questions_evaluated.png[Response Relevancy Generated Questions]
+
+The final step uses the cosine similarity score of each question to calculate the overall response relevancy score. The logic penalizes evasive answers: if any generated question was rated as non-committal (meaning the answer doesn't provide useful information for that question), the overall score is set to 0. Otherwise, the score is the mean cosine similarity between all artificial questions and the user's question.
+
+[source, python,indent=0]
+----
+# calculate the mean cosine similarity over all generated questions
+cosine_sim_mean = pd.DataFrame(generated_questions)["cosine_sim"].mean()
+
+# check if any of the generated questions are non-committal
+has_noncommittal = any(pd.DataFrame(generated_questions)["noncommittal"])
+
+# if any generated question is non-committal, set score to 0
+# this penalizes evasive answers that acknowledge but don't address questions
+response_relevance_score = cosine_sim_mean * int(not has_noncommittal)
+----
+
+This strict approach treats any non-committal response as complete failure. If you prefer a softer penalty that reduces the score proportionally instead of zeroing it out, use: `response_relevance_score = cosine_sim_mean * (1 - noncommittal_ratio)` where `noncommittal_ratio` is the fraction of generated questions marked non-committal.
+
+A response relevancy score of 0.87 is quite high. It indicates that the automatically generated questions are highly similar to the original user question.
+
+<<image_response_relevancy_score>> shows the final response relevancy score.
+
+[[image_response_relevancy_score]]
+.The final response relevancy score
+image::img/ch10_images/response_relevancy_score_output.png[Response Relevancy Score Output]
+
+==== Discussion
+
+Answer relevancy uses reverse question generation to evaluate alignment. If the LLM generates questions from an answer, those questions should resemble the original—if the answer addresses what was asked. High semantic similarity indicates alignment; low similarity reveals misdirection. The non-committal check catches evasive answers that acknowledge questions without providing useful information.
+
+Use answer relevancy when diagnosing why users find technically correct answers unsatisfying. High faithfulness with low satisfaction often indicates relevancy problems—the system provides grounded facts that don't address user intent. The metric also evaluates generation prompt changes.
+
+The metric detects off-topic answers but not incomplete ones. A multi-part question where only one part gets answered may still score high relevancy. Pair with correctness metrics or human evaluation for comprehensive assessment.
+
+Faithfulness asks "does the answer stick to retrieved facts?" Answer relevancy asks "does the answer address the question?" Both are necessary: faithfulness ensures reliability, answer relevancy ensures usefulness.
+
+==== See Also
+
+* https://docs.ragas.io/en/latest/concepts/metrics/available_metrics/response_relevancy/[RAGAS response relevancy] implements answer relevancy evaluation with detailed metric definitions and code examples.
+* https://www.deepeval.com/docs/metrics-answer-relevancy[DeepEval answer relevancy] provides response relevancy evaluation along with faithfulness and contextual precision metrics.
+* https://github.com/langchain-ai/openevals[OpenEvals correctness metric] offers prompts for evaluating answer correctness to complement relevancy assessment.
+
+

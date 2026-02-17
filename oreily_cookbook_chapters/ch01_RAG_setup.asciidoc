@@ -1,0 +1,667 @@
+[[chapter_rag_setup]]
+== Getting Started with RAG
+
+Large Language Models (LLMs) have transformed how we approach complex cognitive tasks—from writing production code to analyzing financial reports and translating between dozens of languages. Complementary foundation models now handle vision, speech synthesis and recognition, audio processing, image generation, and multimodal reasoning, all built on similar transformer architectures that can process and generate human-like content across multiple domains.
+
+Despite these capabilities, these models have fundamental structural limitations. They do not have access to your private or confidential data unless you provide it. Their context windows limit how much information they can consider at once, which makes long documents expensive or impossible to analyse at once. And when they lack the right information, they tend to hallucinate rather than admit uncertainty.
+
+Retrieval Augmented Generation (RAG) addresses all three problems at once. It gives the model controlled access to external knowledge, lets it work with far more information than fits into a single prompt, and grounds its answers in retrieved evidence instead of guesswork. When a user asks a question, the system first retrieves relevant information from a knowledge source and then passes that context to the model to generate a response.
+
+<<basic_rag_chatbot>> shows the simplest form of a RAG system. A retriever searches a knowledge source such as a vector store or database and returns relevant passages. Think of the vector store as a specialized search engine that indexes your specific documents and knowledge base, rather than the entire web like Google. A generator, typically a LLM, uses that retrieved material to produce a grounded answer.
+
+[[basic_rag_chatbot]]
+.A RAG chatbot retrieves relevant information and generates contextual responses
+image::img/ch01_images/harry_potter_basic_rag_chatbot.png[Basic RAG Chatbot Architecture]
+
+RAG is most useful when knowledge is spread across many documents, when answers require synthesis rather than simple lookup, or when the data is too large or too diverse for a human to review. Modern systems often use multiple retrievers. One may search documents, another may query structured databases, and others may call external APIs. The model coordinates these tools to decide what information to use for each question.
+
+<<harry_potter_multi_retrieval>> shows exactly this approach—a RAG system with multiple API endpoints that can search a Notion database, search the web, perform calculations, and access both SQL and vector databases to search the knowledge base. The model decides which retriever to call based on the question and combines the retrieved information to generate an answer. This architecture allows the system to handle a wide variety of questions.
+
+[[harry_potter_multi_retrieval]]
+.Example of a RAG system with multiple retrievers answering questions about Harry Potter books
+image::img/ch01_images/harry_potter_multi_retrieval.png[Example of a RAG system with multiple retrievers answering questions about Harry Potter books]
+
+While many people associate RAG primarily with chatbots, chat interfaces aren't always the optimal solution. Chat works well for exploratory questioning and initial user interactions, but often the best approach combines multiple interfaces. A typical workflow might start with a conversational interface to understand user intent, then transition to a dashboard, form-based application, or automated report once the system understands what the user actually needs. Many RAG systems also run entirely in the background, delivering results through APIs, scheduled reports, or integration with existing business applications.
+
+This chapter walks you through setting up your environment and building your first basic RAG application.
+
+All code examples are available in the https://github.com/polzerdo55862/RAG-with-Python-Cookbook[book's GitHub repository].
+
+=== Identify High-Value RAG Use Cases for Your Organization
+
+==== Problem
+
+Your organization is exploring RAG and needs to identify use cases that deliver the most value.
+
+==== Solution
+
+Start by identifying use cases that solve concrete problems. Many RAG pilot projects fail because they're too complex, too expensive, or don't address real user pain.
+
+Focus on two high-value areas where RAG delivers measurable impact:
+
+1. Data extraction: Converting unstructured data (contracts, invoices, technical drawings, meeting notes) into structured, searchable information
+2. Process automation: Handling repetitive tasks that require decision-making and adaptation
+
+<<table_evaluating_rag_use_cases>> provides some guidance on how to evaluate different scenarios in terms of RAG fit and potential value.
+
+[[table_evaluating_rag_use_cases]]
+.Evaluating RAG use cases
+[cols="1,3,3", options="header"]
+|===
+|RAG fit (1–5) |Use Case |Reasoning
+
+|1
+|"I want to chat with my quarterly report"
+|Single document, low volume. Reading it directly or analysing with general apps (e.g., ChatGPT, Claude App) can do this well.
+
+|2
+|"Summarize this one document for me"
+|General models (Claude, ChatGPT) already do this well. Custom RAG adds little value.
+
+|2
+|"Automate tasks that require high-stakes decisions"
+|Possible, but too risky without strong controls (human-in-the-loop, auditing, fail-safes). LLMs still make mistakes.
+
+|4
+|"Meeting recordings pile up but insights never make it into our knowledge base"
+|Converts inaccessible data (audio, videos, long unstructured notes) into searchable form. Strong ongoing value, but quality depends on transcription.
+
+|4
+|"You must check technical drawings against specification documents"
+|Multimodal comparison humans find tedious. Automation saves time, but requires strong evaluation and exception handling.
+
+|5
+|"We have 10,000 contracts but don't know which ones have auto-renewal clauses"
+|High volume makes manual review impractical. Clear extraction task with verifiable output.
+
+|5
+|"Our customer support tickets contain product issues, but we can't aggregate them"
+|Cross-document pattern detection. Humans can't spot trends at scale.
+
+|5
+|"You get hundreds of customer inquiries daily and need to route them to the right team"
+|Repetitive classification/routing with clear success criteria and measurable ROI.
+
+|===
+
+Many use cases combine data extraction, analysis, and automation. <<image_extraction_from_quality_docs>> shows an example from engineering and quality management. Manufacturers receive thousands of quality documents daily from suppliers. RAG applications extract key information, compare it against ISO standards in a vector database, check compliance, and generate reports. If information is missing or contains non-compliant parameters like welding thickness in this example, the system can automatically retrieve the supplier's contact information and generate a draft follow-up email.
+
+This saves hours of manual review and speeds up issue resolution, an example for a high value RAG use case.
+
+[[image_extraction_from_quality_docs]]
+.Extracting structured data from technical quality documents
+image::img/ch01_images/image_extraction_from_quality_docs.png[Extracting Structured Data from Technical Quality Documents]
+
+==== Discussion
+
+RAG works for automation because LLMs can interpret intent and context, not just match patterns. Traditional automation requires explicit rules for every scenario. When a supplier email says "delayed due to weather" versus "shipment rescheduled," rule-based systems need separate handlers for each phrase. RAG-based systems understand both express the same operational impact.
+
+This capability matters most when data is unstructured and variable. Use RAG when each input differs slightly but requires similar handling—customer emails, contract clauses, or incident reports. Don't use RAG for simple lookups, fixed-format data extraction, or tasks where rules never change. If you can write a regex or SQL query that handles 95% of cases, RAG adds unnecessary complexity and cost.
+
+RAG trades simplicity for flexibility. Rule-based automation runs faster, costs less per operation, and fails predictably. RAG handles edge cases better but requires model hosting, prompt engineering, and evaluation frameworks. Factor in both token costs and engineering effort when comparing approaches.
+
+Start with high-volume tasks where manual review creates bottlenecks. A system that processes 10 documents daily may not justify RAG development costs, but 1,000 documents daily does. Each implementation teaches you about prompt patterns, evaluation metrics, and failure modes that apply to subsequent projects.
+
+Avoid complex multi-system integrations as first projects. Success requires both RAG expertise and organizational buy-in. After demonstrating value on focused use cases, expand to scenarios requiring cross-functional coordination or multiple data sources.
+
+==== See Also
+
+* Dasha Maliugina's blog post https://www.evidentlyai.com/blog/rag-examples[10 RAG examples and use cases from real companies] provides an overview of practical RAG implementations from organizations such as LinkedIn, Harvard Business School, Vimeo, and Pinterest.
+
+* The open-source repository https://github.com/themanojdesai/genai-llm-ml-case-studies[GenAI & LLM System Design: 500+ Production Case Studies] collects real-world examples of production GenAI systems, including many architectures and deployment patterns based on RAG.
+
+=== Choosing Your IDE and Coding Agent Setup
+
+==== Problem
+
+You want to set yourself up to quickly develop and share RAG use cases in Python.
+
+==== Solution
+
+Popular Python IDEs for RAG development include:
+
+- VS Code: Lightweight, extensible, with strong Python support
+- PyCharm: Full-featured Python IDE with advanced debugging
+- Jupyter Notebook/Lab: Interactive development with inline visualization
+- Spyder: Scientific computing focus
+- Vim/Neovim: Terminal-based, highly customizable
+
+Popular LLM-powered coding assistants include:
+
+- GitHub Copilot: IDE integration, chat and agent modes
+- Cursor: Similar to Copilot with IDE-native experience
+- Claude Code: Command-line tool, excels at understanding large codebases
+
+<<github_copilot_agent>> shows VS Code with GitHub Copilot, displaying the chat window with ask, edit, and agent modes.
+
+[[github_copilot_agent]]
+.GitHub Copilot in VS Code
+image::img/ch01_images/github_copilot_agent.png[GitHub Copilot Agent in VS Code]
+
+
+
+Beyond IDEs, you need to set up a Python environment with the following requirements to run the book's code examples:
+
+- Python 3.9 or later (code examples tested with Python 3.10)
+- Virtual environment for each project (see <<setup_virtualenv>>)
+- Chapter-specific dependencies (see <<install_deps_per_chapter>>)
+
+==== Discussion
+
+GitHub Copilot and Cursor integrate directly into your IDE and show code changes in real time. You can review each suggestion before accepting it. Claude Code operates from the command line and handles large codebases with complex module dependencies more effectively than IDE-based assistants.
+
+Most developers find value in both IDE-integrated and command-line approaches for different tasks.
+
+All coding agents have different strengths, weaknesses, and pricing models. Try free tiers to evaluate which tools fit your workflow before committing to subscriptions. Some teams standardize on one tool for consistency, while others let developers choose based on personal preference.
+
+==== See Also
+
+* https://docs.github.com/en/copilot[GitHub Copilot documentation] explains setup and usage for AI-powered code completion in your IDE.
+* https://cursor.sh/[Cursor] provides an AI-first code editor with integrated chat and inline editing features.
+* https://www.anthropic.com/claude[Claude] offers API access for building custom coding assistants and workflows.
+
+[[setup_virtualenv]]
+=== Getting Started with Jupyter Notebooks in VS Code
+
+==== Problem
+
+You want to quickly get started building your own RAG flows. You want to experiment a lot and keep your code, visualizations, and documentation all in one place.
+
+==== Solution
+
+Jupyter notebooks let you write and run code in separate cells, test parts independently, and display outputs, tables, and charts inline. This makes them ideal for RAG experimentation.
+
+Setup in VS Code:
+
+1. Install VS Code from the https://code.visualstudio.com/[official website]
+2. Install the Python extension (includes Jupyter support)
+3. Create a new notebook file (`.ipynb` extension)
+4. Create and activate a virtual environment:
+
+[source,bash]
+----
+python3 -m venv .venv
+# Windows: .\.venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+----
+
+5. Select the virtual environment as your Jupyter kernel (top right in VS Code)
+
+<<vs_code_jupyter>> shows a Jupyter notebook in VS Code with the correct environment selected.
+
+[[vs_code_jupyter]]
+.Jupyter Notebook in VS Code
+image::img/ch01_images/jupyter_notebook_screenshot.png[Jupyter in VS Code]
+
+Install packages either in terminal or directly in notebook cells:
+
+[source,python]
+----
+!pip install openai chromadb
+----
+
+Export dependencies for sharing:
+
+[source,bash]
+----
+pip freeze > requirements.txt
+----
+
+Install dependencies on another system:
+
+[source,bash]
+----
+pip install -r requirements.txt
+----
+
+==== Discussion
+
+Notebooks keep data and models in memory. Load data once and run experiments repeatedly without restarting.
+
+Notebooks work well for exploration but have limitations for production systems. Cells can run in any order, creating hidden dependencies that aren't obvious from top-to-bottom reading. Notebooks store content as JSON, making diffs and merge conflicts difficult to resolve. These factors make notebooks unsuitable for production deployments that require robust testing and version control.
+
+Use notebooks for exploration and visualization. Extract reusable logic into separate Python modules. Import these modules into notebooks. This keeps notebooks focused on experimentation while reusable logic stays testable and maintainable.
+
+Use the IPython `autoreload` extension to automatically reload changed modules:
+
+[source,python,indent=0]
+----
+%load_ext autoreload
+%autoreload 2  # Reload all modules before running code
+
+import my_module
+----
+
+Don't use notebooks when collaborating with teams unfamiliar with Jupyter. The execution order dependencies confuse developers accustomed to linear Python scripts. Similarly, avoid notebooks for code that must meet compliance requirements or pass through formal review processes—the JSON format makes auditing difficult.
+
+==== See Also
+
+* https://code.visualstudio.com/docs/datascience/jupyter-notebooks[VS Code Jupyter documentation] covers notebook features, debugging, and variable inspection.
+* https://jupyter.org/install[Jupyter installation guide] provides setup instructions for standalone Jupyter Notebook and JupyterLab environments.
+
+[[recipe_store_secrets]]
+=== Storing Secrets and API Keys with .env
+
+==== Problem
+
+You want to keep secrets like API keys out of your source code, while still reusing them across multiple projects.
+
+==== Solution
+
+Use a `.env` file to store secrets. This keeps API keys out of your codebase and prevents accidental commits to version control.
+
+Store all secrets in a `.env` file and add it to your `.gitignore`. The `.gitignore` file lists files Git should not track, ensuring secrets stay local and never reach remote repositories.
+
+This recipe demonstrates loading secrets from `.env` files using the `python-dotenv` library. See <<image_secrets_loading_architecture>> for the complete architecture.
+
+[[image_secrets_loading_architecture]]
+.Loading secrets from .env in development and from secret management systems in production
+image::img/ch01_images/secrets_loading_architecture.png[Loading secrets from .env in development and from secret management systems in production]
+
+[TIP]
+====
+Treat `.env` files as a local development convenience only. For production deployments, always use a managed secret store provided by your cloud platform.
+====
+
+This recipe uses the `python-dotenv` library to load secrets from a `.env` file into environment variables.
+
+[source,bash]
+----
+pip install python-dotenv
+----
+
+Put each secret into your `.env` file using the format `KEY=VALUE`. Most SDKs expect specific environment variable names, so always check the documentation. For example, OpenAI looks for `OPENAI_API_KEY`.
+
+[source,text]
+----
+HUGGINGFACEHUB_API_TOKEN=hf_...
+OPENAI_API_KEY=sk-...
+----
+
+Make sure `.env` is listed in your `.gitignore`. This prevents Git from tracking it. When you create a new repository on GitHub, a default `.gitignore` is often generated for you. Add `.env` if it is not already included. The following snippet shows an example `.gitignore` file with common file types that are typically ignored.
+
+[source,text]
+----
+# Environments
+.env
+.venv
+.vscode
+env/
+venv/
+----
+
+To load secrets in your Python code, call `load_dotenv()` once at startup. You can then access values using `os.getenv()`, as shown in the following code snippet:
+
+[source,python,indent=0]
+----
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+openai_key = os.getenv("OPENAI_API_KEY")
+----
+
+==== Discussion
+
+Environment variables are key-value pairs that your program reads from the operating system at runtime. They provide a standard interface for accessing configuration and secrets without hardcoding values in source code.
+
+The `.env` approach works well for local development because it keeps secrets out of version control without requiring cloud infrastructure. However, `.env` files are plain text stored on disk, providing no encryption or access control.
+
+For production systems, use managed secret stores like AWS Secrets Manager, Azure Key Vault, or HashiCorp Vault. These services provide encryption at rest and in transit, audit logging, automatic rotation, and fine-grained access controls. Most cloud platforms inject secrets directly as environment variables at runtime, so your application code remains unchanged—it still uses `os.getenv()`.
+
+Don't share `.env` files via email, Slack, or shared drives when multiple team members need access to the same secrets—this defeats the security benefits. Instead, use a shared development secret store or credential management tool like 1Password or AWS Secrets Manager with developer access.
+
+The key principle: secrets should never be hardcoded in source code or committed to version control. Whether you use `.env` locally or a managed service in production, environment variables provide a consistent interface for accessing secrets.
+
+==== See Also
+
+* https://github.com/theskumar/python-dotenv[python-dotenv documentation] explains how to load environment variables from `.env` files into your Python applications.
+* https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository[GitHub's guide on removing sensitive data] shows how to clean up accidentally committed secrets from Git history.
+
+=== Building Your First RAG App
+
+==== Problem
+
+You want to get started and build your first RAG based conversational knowledge chatbot.
+
+==== Solution
+
+Every RAG system is built around three essential components:
+
+1. An embedding model that represents text as vectors
+2. A vector store that searches those vectors
+3. An LLM that generates answers from retrieved context
+
+Follow this workflow:
+
+**Data Ingestion:**
+
+1. Split documents into smaller chunks
+2. Generate embeddings for each chunk
+3. Store vectors in a vector database
+
+**Query Processing:**
+
+<<basic_rag_flow>> illustrates the complete RAG pipeline.
+
+1. Convert the user's question into an embedding vector
+2. Search the vector database for the closest matching vectors
+3. Select the most relevant chunks
+4. Send chunks together with the user's question to the LLM
+
+In the last step, the LLM generates an answer using this context.
+
+[[basic_rag_flow]]
+.Basic RAG Pipeline Overview
+image::img/ch01_images/basic_rag_flow.png[Basic RAG Flow]
+
+Before you begin, make sure you have the following:
+
+- OpenAI account and API key from https://platform.openai.com/signup[OpenAI Platform]
+- ChromaDB for vector storage (for vector store concepts, see <<chapter_similarity_search>>)
+
+This recipe demonstrates the workflow by building a Harry Potter knowledge chatbot. <<harry_potter_chatbot_architecture>> illustrates the overall architecture this recipe implements. The retriever searches a ChromaDB vector store built from the Harry Potter books, and the generator uses OpenAI models to answer questions based on retrieved context.
+
+[[harry_potter_chatbot_architecture]]
+.Harry Potter Chatbot RAG Architecture
+image::img/ch01_images/harry_potter_chatbot_architecture.png[Harry Potter Chatbot RAG Architecture]
+
+**Step 1: Text chunking**
+
+This recipe builds RAG from scratch without frameworks to demonstrate how simple the core concepts are. RAG orchestration frameworks like LangChain and LlamaIndex provide ready-to-use chunking functions, but this example avoids those dependencies to keep the implementation lightweight and the core concepts clear.
+
+The following code demonstrates how to chunk text at natural boundaries, such as paragraphs or sentences, with overlap to preserve context across chunks.
+
+[source,python,indent=0]
+----
+from pathlib import Path
+import chromadb
+from openai import OpenAI
+
+
+def chunk_text(text, size=1000, overlap=200):
+    chunks, start = [], 0
+    while start < len(text):
+        end = min(start + size, len(text))
+        if end < len(text):
+            bp = text.rfind("\n\n", start, end)
+            if bp == -1:
+                bp = text.rfind(". ", start, end)
+            if bp > start:
+                end = bp + 1
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        start = end - overlap if end < len(text) else end
+    return chunks
+
+
+file_path = Path("datasets/text_files/harry_potter.txt")
+text = file_path.read_text(encoding="utf-8")
+chunks = chunk_text(text)
+----
+
+**Step 2: Embed and store in ChromaDB**
+
+If you run this cell multiple times and get ID conflicts, delete the `chroma_db` folder or use a new collection name.
+
+[source,python,indent=0]
+----
+client = OpenAI()
+embedding_model = "text-embedding-3-small"
+
+
+def embed_and_store(chunks, db_path, collection_name):
+    chroma = chromadb.PersistentClient(path=str(db_path))
+    collection = chroma.get_or_create_collection(
+        name=collection_name,
+        metadata={"description": "Harry Potter knowledge base"},
+    )
+
+    embeddings = []
+    for i in range(0, len(chunks), 100):
+        batch = chunks[i : i + 100]
+        res = client.embeddings.create(model=embedding_model, input=batch)
+        embeddings.extend([x.embedding for x in res.data])
+
+    collection.add(
+        ids=[f"chunk_{i}" for i in range(len(chunks))],
+        documents=chunks,
+        embeddings=embeddings,
+        metadatas=[{"chunk_index": i} for i in range(len(chunks))],
+    )
+    return collection
+
+
+chroma_db_dir = Path("chroma_db")
+collection = embed_and_store(chunks, chroma_db_dir, "harry_potter_kb")
+----
+
+**Step 3: Test retrieval**
+
+With data stored, test that the retrieval system finds relevant chunks for a given question.
+
+[source,python,indent=0]
+----
+def retrieve(question, top_k=3):
+    q_emb = client.embeddings.create(
+        model=embedding_model,
+        input=question,
+    ).data[0].embedding
+
+    res = collection.query(
+        query_embeddings=[q_emb],
+        n_results=top_k,
+        include=["documents"],
+    )
+
+    return res["documents"][0]
+
+
+question = "Why did Uncle Vernon take the family to a hut in the middle of the sea?"
+docs = retrieve(question)
+----
+
+**Step 4: Test generation**
+
+Once retrieval works correctly, test the generation step. The following code feeds the retrieved documents and question to the LLM to generate an answer.
+
+[source,python,indent=0]
+----
+def answer(question, docs):
+    context = "\n\n---\n\n".join(docs)
+    prompt = f"""Answer the question using only the context below.
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:"""
+
+    res = client.chat.completions.create(
+        model="gpt-5-mini",
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    return res.choices[0].message.content
+
+
+question = "Why did Uncle Vernon take the family to a hut in the middle of the sea?"
+docs = retrieve(question)
+answer_text = answer(question, docs)
+----
+
+With the retriever and generation working, you have a first basic RAG system.
+
+==== Discussion
+
+This basic RAG pattern works when your data fits in a single vector store and users ask direct factual questions. It fails when queries require multi-step reasoning ("compare X and Y, then recommend Z") or when different data types need different retrieval strategies. For example, combining structured database queries with document search requires orchestration beyond simple vector similarity.
+
+Test retrieval independently before debugging generation. If the retriever returns irrelevant chunks, fix retrieval before adjusting prompts or LLM parameters. If answers feel generic or unrelated to your documents, the problem is usually retrieval quality, not the LLM.
+
+As you progress through this book, you'll learn a variety of techniques for both retrieval and generation that can be combined to build more sophisticated RAG systems tailored to your specific use cases.
+
+==== See Also
+
+* https://python.langchain.com/docs/tutorials/rag/[LangChain RAG tutorial] walks through building a complete question-answering application with source code.
+* https://docs.llamaindex.ai/en/stable/getting_started/starter_example/[LlamaIndex starter example] demonstrates indexing and querying documents in under 5 minutes.
+* https://github.com/run-llama/rags[LlamaIndex RAG examples repository] contains production-ready RAG patterns for various use cases.
+
+=== Choosing the Frameworks and Libraries for Your RAG Applications
+
+==== Problem
+
+You are looking for a set of libraries and frameworks that help you build RAG applications.
+
+==== Solution
+
+RAG applications use both high level orchestration frameworks like LangChain and LlamaIndex and low level libraries like FAISS and NumPy for data processing.
+
+<<rag_libraries_overview>> shows the main library categories used in this book.
+
+[[rag_libraries_overview]]
+.RAG libraries overview
+image::img/ch01_images/rag_application_libraries_ecosystem.png[RAG Application Libraries Ecosystem]
+
+<<rag_libraries_table>> provides an overview of a selection of important libraries and frameworks for RAG applications:
+
+[[rag_libraries_table]]
+.Common libraries and frameworks for RAG applications
+[cols="2,3,5",options="header"]
+|===
+|Category |Example Libraries |Description
+
+|RAG and Agentic RAG Orchestration
+|`langchain`, `langgraph`, `llama-index`
+|Orchestration frameworks bundle common RAG components like retrievers, generators, prompts, and memory into unified abstractions. They handle the plumbing between vector stores, LLMs, and databases, letting you focus on application logic rather than integration code.
+
+|LLM/Embeddings
+|`openai`, `anthropic`, `transformers`, `sentence-transformers`
+|Foundation models and embedding services form the core of your RAG system, providing the intelligence for both understanding queries and generating responses.
+
+|Vector Storage
+|`chromadb`, `faiss-cpu`, `pinecone`, `milvus`, `weaviate`
+|Vector databases enable efficient similarity search by storing and retrieving embeddings.
+
+|Data Processing
+|`pandas`, `numpy`, `PyPDF2`, `pypdf`, `python-docx`, `unstructured`, `openpyxl`, `scikit-learn`
+|Libraries for data manipulation, file reading, and preprocessing tasks. Help load and preprocess unstructured data before connecting it to your RAG app.
+
+|Multimodal & Media
+|`pillow`, `pytesseract`, `moviepy`, `pdf2image`, `opencv-python`
+|Mature libraries for loading and processing various file formats including videos, podcasts, Word docs, PowerPoints, and images.
+
+|Text Processing & NLP
+|`nltk`, `transformers`, `rank-bm25`, `beautifulsoup4`
+|Traditional NLP libraries that help process text efficiently and perform text analysis tasks without relying solely on LLMs.
+
+|Evaluation & Monitoring
+|`ragas`, `phoenix`, `langsmith`, `prometheus-eval`
+|Frameworks providing predefined metrics to evaluate RAG app components (retriever, generator) and overall application performance.
+
+|Web Frameworks & Deployment
+|`streamlit`, `gradio`, `flask`, `django`
+|Frameworks for building user interfaces and deploying RAG applications. Streamlit and Gradio are ideal for rapid prototyping, while Flask and Django work well for production-grade apps.
+
+|Database & Storage
+|`sqlalchemy`, `psycopg2-binary`, `sqlite3`
+|Connectors and ORM libraries for working with traditional SQL databases as data sources behind RAG apps.
+
+|===
+
+==== Discussion
+
+Orchestration frameworks like LangChain, LangGraph, and LlamaIndex (from <<rag_libraries_table>>) provide pre-built components for common RAG tasks—retrieval chains, prompt templates, memory management, and agent loops. This accelerates development when building standard patterns. However, frameworks bundle many functions and pull in substantial dependencies. <<langchain_text_splitters_deptree>> shows the dependency tree for the `langchain-text-splitters` library.
+
+[[langchain_text_splitters_deptree]]
+.Example: Dependency tree for a framework component
+image::img/ch01_images/langchain-text-splitters-deptree.svg[LangChain Dependency Tree]
+
+Each dependency introduces potential breaking changes, version conflicts, security updates, and incompatibilities. Projects with 100+ dependencies (common with full framework adoption) require significantly more troubleshooting than those using 5-10 core libraries.
+
+Use frameworks when building applications that need multiple RAG patterns—conversational memory, multi-step retrieval, tool calling, and re-ranking. Frameworks handle the integration work between these components. Don't use frameworks for simple applications that only need vector search and generation. A direct implementation with OpenAI and ChromaDB requires 2-3 dependencies instead of 50+.
+
+Consider starting simple and adopting frameworks when complexity justifies the trade-off. You can migrate a basic retriever-generator implementation to a framework later if requirements expand. Going the opposite direction—simplifying from framework to direct implementation—is much harder.
+
+
+[[install_deps_per_chapter]]
+=== Running the Code Examples in the Book Repository
+
+==== Problem
+
+You want to clone the book repo and install the dependencies needed per chapter.
+
+==== Solution
+
+First, clone the repository to your local machine. Then, set up a virtual environment and install only the dependencies required for the chapter you are working on.
+
+The following code snippet shows how to clone the repository and navigate into it.
+
+[source,powershell]
+----
+git clone git@github.com:polzerdo55862/RAG-with-Python-Cookbook.git
+cd rag-oreilly-book
+----
+
+Create a virtual environment and install dependencies. Each chapter has its own `requirements_chXX.txt` file.
+
+On Windows (PowerShell):
+
+[source,powershell]
+----
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements_ch08.txt
+----
+
+On macOS/Linux (Bash):
+
+[source,bash]
+----
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements_ch02.txt
+----
+
+
+
+The code directory structure organizes examples by chapter (e.g., `01_loading_data/`, `02_chunking_data/`), with shared datasets, utility functions, and chapter-specific requirements files:
+
+[source,bash]
+----
+code/
+├─ 01_loading_data/
+├─ 02_chunking_data/
+├─ 03_text_embedding/
+├─ ...
+├─ 11_building_rag_apps/
+├─ datasets/
+├─ results/
+├─ util/
+├─ helper_functions.py
+├─ requirements.txt
+├─ requirements_ch01.txt
+├─ requirements_ch02.txt
+├─ ...
+└─ requirements_ch08.txt
+----
+
+==== Discussion
+
+Installing dependencies per chapter rather than globally reduces conflicts and keeps environments lightweight. Each `requirements_chXX.txt` file contains only the libraries needed for that chapter's recipes. Alternatively you can also find the install commands at the top of each of the Jupyter Notebook files in the book's repository.
+
+Virtual environments isolate project dependencies from system Python packages. This prevents version conflicts when different projects require incompatible library versions. Activate the environment each time you work on the book examples.
+
+[TIP]
+====
+Most code examples in this book are also available as Google Colab notebooks. Google Colab is a free cloud-based Jupyter notebook environment that requires no local setup—you can run Python code directly in your browser with access to GPUs. This makes it easy to experiment with the recipes without installing dependencies locally. Visit the book's repository to find the Colab links for each chapter's examples in the README.
+====
+
+==== See Also
+
+* https://python.langchain.com/docs/introduction/[LangChain documentation] covers architecture, integrations, and API reference for RAG applications.
+* https://docs.llamaindex.ai/[LlamaIndex documentation] provides guides on indexing strategies, query engines, and advanced retrieval patterns.
+* https://haystack.deepset.ai/overview/intro[Haystack documentation] explains pipeline-based RAG design and production deployment.

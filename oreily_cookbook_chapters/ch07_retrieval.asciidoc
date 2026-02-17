@@ -1,0 +1,998 @@
+[[chapter_07_retrieval]]
+== Retrieval
+
+Improving the retriever step is the most effective way to increase the accuracy and relevance of a RAG system. You need a solid toolkit to build customized, highly efficient systems. This chapter introduces advanced retrieval techniques that go beyond a basic vector search. <<overview_rag_process_retrieval_steps>> provides an overview of techniques for optimizing the pre-retrieval and retrieval steps.
+
+[[overview_rag_process_retrieval_steps]]
+.An overview of techniques to enhance the retrieval process
+image::img/ch07_images/overview_rag_process_retrieval_steps.png[Flowchart showing seven retrieval enhancement techniques in the RAG pipeline: metadata filtering, multi-query retrieval, query routing, auto-merging, sentence window retrieval, HyDE, and query decomposition with reranking]
+
+Real-world RAG workflows typically combine several of these techniques, depending on the use case. <<multi_step_query>> shows an example workflow that combines multiple steps and advanced retrieval techniques. The workflow illustrates three key stages: (1) breaking down a complex query into focused sub-queries, (2) routing each sub-query to the appropriate tool or data source to retrieve relevant information, and (3) reasoning across the different answers to synthesize a comprehensive response.
+
+
+[[multi_step_query]]
+.A multi-step retrieval process
+image::img/ch07_images/multi_step_query.png[Flowchart of multi-step query process: complex user question decomposed into separate queries, metadata filtering to restrict datasets, parallel semantic searches for different companies, combined results, and reasoning step for final answer]
+
+
+Think of the recipes in this chapter as building blocks that you can combine to improve your workflow and achieve better search results. You need a toolkit of advanced retrieval techniques and then apply them in the way that best fits your use case.
+
+<<table_retrieval_enhancement_techniques>> summarizes seven different techniques discussed in this chapter. You should understand each one and decide what makes sense for your specific dataset and task.
+
+
+[[table_retrieval_enhancement_techniques]]
+.Retrieval enhancement techniques
+[cols="2,4,2", options="header"]
+|===
+|Technique |Description |Recipe Reference
+
+|Metadata Filtering
+|Using metadata to filter search results based on what you know about the user
+|<<recipe_using_metadata_filtering>>
+
+|Multi-Query Retrieval
+|Creating multiple versions of the same prompt to find more relevant documents
+|<<multi_query_prompting>>
+
+|Query Routing System
+|Using a query routing system to identify the best data sources or tools to use to answer the question
+|<<recipe_query_routing_system>>
+
+|Auto-Merging Retriever
+|Retrieving larger, more meaningful text chunks by grouping related data
+|<<recipe_auto_merging_retriever>>
+
+|Sentence Window Retrieval
+|Including nearby sentences to add context to the retrieved text
+|<<recipe_sentence_window_retrieval>>
+
+|Hypothetical Document Embeddings (HyDE)
+|Generating hypothetical documents to improve search results
+|<<recipe_generate_pseudo_documents>>
+
+|Query Decomposition
+|Breaking down complex queries into simpler subqueries
+|<<recipe_query_decomposition>>
+
+|Reranking
+|Reviewing and evaluating the relevance of the retrieved documents using LLMs
+|<<recipe_reranking>>
+|===
+
+You can find all the code examples for this chapter in the https://github.com/polzerdo55862/RAG-with-Python-Cookbook[book's GitHub repository].
+
+[[recipe_using_metadata_filtering]]
+=== Optimizing Query Results Using Metadata Filtering in PostgreSQL
+
+==== Problem
+
+You want to make search results more robust and accurate by applying metadata filters before running semantic search.
+
+==== Solution
+
+Storing metadata alongside embeddings lets you apply filters before semantic search. This narrows the search space to a relevant subset of your data.
+Imagine you're building a chatbot for a sports website covering football, tennis, and basketball. A user query such as "Who's the best player of all time?" is too vague. Without knowing the sport, it's impossible to answer properly.
+
+If you have context about the user, you can filter the vector dataset down to the relevant sport. If the user is a football enthusiast, you filter to football content only and search within that subset.
+
+In <<image_metadata_filtering_flow>>, Jim is a football fan from Liverpool. When he asks for the latest match results of his favorite club, user preferences likely indicate that he is looking for last night's match results for FC Liverpool.
+[[image_metadata_filtering_flow]]
+.How to use metadata filtering as part of a router retriever. The router prefilters the search space based on metadata before performing the search.
+image::img/ch07_images/metadata_filtering_flow.png[Diagram showing metadata filtering flow with example: user profile information used to pre-filter vector database by metadata before semantic search within filtered subset produces relevant match results]
+
+Let's implement this approach using PostgreSQL as the vector database. You only need the psycopg2 library to connect to Postgres and the OpenAI client to generate vector embeddings:
+
+[source,bash]
+----
+pip install psycopg2 openai
+----
+
+For this example, imagine a dataset with general knowledge about football and tennis. This recipe shows how to answer questions about the greatest player by filtering based on user preferences.
+
+Start by setting up your database schema. To apply filters later, store the relevant metadata up front. Create a table with embedding vectors and a `metadata` column that holds a JSON object:
+
+
+[source, python,indent=0]
+----
+# creates the vector extension if it does not exist
+cur.execute("""CREATE EXTENSION IF NOT EXISTS vector""")
+
+# Create table with metadata column
+cur.execute(
+    """
+    CREATE TABLE IF NOT EXISTS embeddings_table_with_metadata (
+        id SERIAL PRIMARY KEY,
+        text_chunk TEXT,
+        embedding VECTOR(1536),
+        metadata JSONB
+    )
+"""
+)
+conn.commit()
+----
+
+With the table structure in place, populate it with sample data. This code inserts four text chunks—two about tennis and two about football. Each row contains the text, its embedding vector, and metadata as a JSON object. For this basic example, the only metadata field is the topic of the text chunk, set to either `tennis` or `football`:
+
+[source, python,indent=0]
+----
+# Define text chunks and metadata
+text_chunks = [
+    {
+        "text": "Roger Federer has won 20 Grand Slam titles in tennis.",
+        "topic": "tennis",
+    },
+    {
+        "text": "The FIFA World Cup is the most prestigious "
+        "football tournament.",
+        "topic": "football",
+    },
+    {
+        "text": "Serena Williams is one of the greatest tennis "
+        "players of all time.",
+        "topic": "tennis",
+    },
+    {
+        "text": "Lionel Messi has won multiple Ballon d'Or "
+        "awards in football.",
+        "topic": "football",
+    },
+]
+# Initialize OpenAI client
+client = OpenAI()
+
+# Insert text chunks with embeddings and metadata
+for chunk in text_chunks:
+    # Get embedding using OpenAI API
+    response = client.embeddings.create(
+        input=chunk["text"],
+        model="text-embedding-3-small"
+    )
+    embedding = response.data[0].embedding
+
+    metadata = {"topic": chunk["topic"]}
+    cur.execute(
+        "INSERT INTO embeddings_table_with_metadata "
+        "(text_chunk, embedding, metadata) VALUES (%s, %s, %s)",
+        (chunk["text"], embedding, json.dumps(metadata)),
+    )
+
+conn.commit()
+----
+
+<<screenshot_metadata_filtering_table_in_pgadmin>> shows what the table looks like in pgAdmin.
+
+[[screenshot_metadata_filtering_table_in_pgadmin]]
+.The populated metadata filtering table as viewed in pgAdmin
+image::img/ch07_images/screenshot_metadata_filtering_table_in_pgadmin.png[PostgreSQL table screenshot in pgAdmin interface showing columns: id, text_chunk, embedding vector with 1536 dimensions, and metadata JSONB column with topic classification]
+
+Now that the data is loaded with metadata, use this metadata column to perform filtering before semantic search. Consider a query where the user asks for the best player of all time—an ambiguous question unless you know which sport the user has in mind.
+
+If you know the user's preferences—say they're primarily a football fan—apply a metadata filter for entries where the topic is `football`, then perform a cosine-similarity search on the filtered subset:
+
+[source, python,indent=0]
+----
+# Query the table with metadata filtering
+query = "Who is the best player?"
+response = client.embeddings.create(
+    input=query,
+    model="text-embedding-3-small"
+)
+query_embedding = response.data[0].embedding
+topic_filter = "football"
+
+cur.execute(
+    f"""
+    SELECT text_chunk, 1 - (embedding <=> %s::vector) AS similarity
+    FROM embeddings_table_with_metadata
+    WHERE metadata->>'topic' = %s
+    ORDER BY similarity DESC
+    LIMIT 5
+    """,
+    (query_embedding, topic_filter),
+)
+results = cur.fetchall()
+----
+
+<<screenshot_results_metadata_filtering_example>> shows the results. The snippet about Lionel Messi and the fact that he won multiple Ballon d'Or awards is ranked highest and is therefore the most relevant match.
+
+[[screenshot_results_metadata_filtering_example]]
+.Query results showing metadata filtering in action
+image::img/ch07_images/screenshot_results_metadata_filtering_example.png[Database query results table showing semantic search output with columns for text_chunk and similarity score, displaying highest ranked match based on cosine distance similarity]
+
+The query successfully retrieves football-related content because the metadata filter was set to `football` based on prior knowledge about the user. An alternative approach is to have an LLM analyze the question and the available content in the vector database, and then let the model propose the best metadata filters.
+
+To avoid increasing latency, you can use a fast and efficient model for this step, because in many cases it is obvious what the user is looking for, assuming it is clear what data is available in the knowledge source. The more difficult part is analyzing complex snippets and reaching a good conclusion. For that reasoning step, it makes sense to use a bigger, more capable model.
+
+==== Discussion
+
+Metadata filtering works by narrowing the search space before semantic search runs. This matters when your vector database contains diverse content where a global search returns irrelevant matches. The mechanism is straightforward: filter by metadata first, then run cosine similarity only within that subset.
+
+Use metadata filtering when you have distinct user segments (logged-in users with preferences), content naturally partitions into categories (products by department, articles by topic), or queries become ambiguous without context ("best player" means different things in different sports).
+
+Skip it when your entire dataset is topically homogeneous, you lack metadata to filter on, or the overhead of maintaining metadata tags exceeds the accuracy benefit.
+
+The main trade-off is upfront metadata collection effort versus ongoing accuracy gains. Testability improves significantly: when you segment retrieval by metadata (e.g., football vs. tennis), you can build evaluation datasets per topic, making it easier to measure performance and identify weak spots.
+
+Start with one category, validate retrieval quality, then expand incrementally. Often the hardest part is collecting the right metadata. <<chapter_adding_metadata>> shows how to extract existing metadata from documents and generate new metadata by having an LLM analyze content.
+
+==== See Also
+
+* https://docs.chromadb.com/usage-guide#metadata-filtering[ChromaDB metadata filtering documentation] shows practical examples with operators like `$eq`, `$gt`, and `$lt`.
+* https://docs.pinecone.io/guides/data/filter-with-metadata[Pinecone metadata filtering guide] demonstrates combining vector search with metadata filters.
+* https://www.postgresql.org/docs/current/datatype-json.html[PostgreSQL JSONB documentation] covers JSON querying and indexing for metadata storage.
+
+[[recipe_generate_pseudo_documents]]
+=== Enhancing Retrieval Accuracy with HyDE
+
+==== Problem
+
+You want to improve search results by creating pseudo-documents that match the style of real content in your database.
+
+==== Solution
+
+HyDE (Hypothetical Document Embeddings) generates hypothetical documents that match the user's query. These hypothetical documents are then used for semantic search.
+
+The hypothetical documents are not intended to be factually correct. They simply resemble plausible passages from articles or books that could contain an answer, written in a style similar to real documents in your database. This style matching can improve retrieval results.
+
+The process is straightforward:
+
+. The user asks a question.
+. The LLM generates a hypothetical document that could answer the user's question.
+. You embed the hypothetical document(s) and search the vector database.
+. You use the retrieved real documents to generate the final answer.
+
+<<how_does_hyde_work>> visualizes these steps using two examples from the https://arxiv.org/abs/2212.10496[paper] that first introduced the HyDE concept. The figure shows a medical query generating a passage about wisdom tooth removal time, and a scientific query generating a passage with statistics about COVID's mental health impact. Both demonstrate how HyDE creates text that stylistically matches the target corpus.
+
+[[how_does_hyde_work]]
+.How does the LLM generate a hypothetical paragraph to assist in answering the question?
+image::img/ch07_images/how_does_hyde_work.png[Two-panel illustration of HyDE process showing medical query generating medical-style text for vector search, and scientific query generating academic-style text for vector search, demonstrating style-matching for improved retrieval]
+
+In this recipe, you use an OpenAI model to generate hypothetical documents.
+
+A smaller, efficient model is often sufficient because it only needs to produce plausible text snippets that match the query. The model should return only the hypothetical documents and nothing else.
+
+To ensure the model returns a list of hypothetical documents in a predictable format, use Pydantic to define the expected response schema.
+
+[source,bash]
+----
+pip install openai pydantic
+----
+
+
+The following code snippet generates hypothetical documents for a query where the user asks for the revenue of Company X in 2024.
+
+[source, python,indent=0]
+----
+from pydantic import BaseModel
+from openai import OpenAI
+
+user_query = "What is the revenue of Company X in 2024?"
+
+client = OpenAI()
+
+class HypotheticalDocuments(BaseModel):
+    documents: list[str]
+
+prompt = f"""
+You are an AI assistant. Based on the user query below, generate
+three hypothetical text chunks that contain relevant information to
+answer the query.
+"""
+
+completion = client.beta.chat.completions.parse(
+    messages=[
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": user_query},
+    ],
+    model="gpt-5-mini",
+    response_format=HypotheticalDocuments,
+)
+
+hypothetical_documents = completion.choices[0].message.parsed.documents
+----
+
+<<screenshot_generating_hypothetical_documents>> shows the generated hypothetical documents. The LLM creates paragraphs that resemble financial reports, which can help retrieve better results from the vector database.
+
+[[screenshot_generating_hypothetical_documents]]
+.Hypothetical documents generated to answer "What is the revenue of Company X in 2024?"
+image::img/ch07_images/screenshot_generating_hypothetical_documents.png[Screenshot of three generated hypothetical documents in financial report style answering revenue query, created by GPT model using Pydantic response schema]
+
+The next step follows the basic RAG approach: use the hypothetical documents to generate embeddings, search the vector database, and then build a prompt around the retrieved content.
+
+The hypothetical documents are not included in the final prompt. They are replaced with the real documents retrieved from the vector database.
+
+==== Discussion
+
+HyDE works by transforming queries into text that stylistically matches your corpus. If your documents are scientific papers with formal language, HyDE generates formal hypothetical passages. If they're casual blog posts, it generates casual text. The embedding similarity becomes style + topic rather than just topic.
+
+Use HyDE when there's a vocabulary or style mismatch between user queries and stored documents. For example, users ask "How do I fix my car?" but your documents say "automotive repair procedures." HyDE bridges this gap by generating text in your corpus's style.
+
+Skip it when query and document styles already match, your baseline retrieval works well (validate with eval metrics first), or the added latency (one extra LLM call per query) and cost make the trade-off unappealing.
+
+The main risk is generating plausible but incorrect hypothetical documents that lead to wrong retrievals. This happens more with specialized domains where the model lacks knowledge. Test thoroughly before deploying to production.
+
+[TIP]
+====
+HyDE differs from query expansion: query expansion generates alternative phrasings of the same question, while HyDE generates hypothetical answer passages. HyDE is most effective with cross-domain retrieval where linguistic style matters more than exact keyword matching.
+====
+
+==== See Also
+
+* https://developers.llamaindex.ai/python/examples/query_transformations/hydequerytransformdemo[LlamaIndex HyDE implementation] provides a complete working example you can adapt.
+* https://docs.langchain.com/oss/javascript/integrations/retrievers/hyde[LangChain RAG tutorial] includes HyDE integration in a production pipeline.
+* https://arxiv.org/abs/2212.10496[Original HyDE paper] describes the technique and evaluation results across multiple domains.
+
+[[multi_query_prompting]]
+=== Improving Search Results with Multi-Query Retrieval
+
+==== Problem
+
+You want to send multiple queries to your vector database that cover different facets of the original user query to ensure you retrieve all relevant content.
+
+==== Solution
+
+Multi-query retrieval creates several variations of the original user's question, performs a semantic search with each one, and then combines the results to produce a more comprehensive answer.
+
+The process is straightforward, as shown in <<multi_query_schema>>:
+
+. Take the original query and generate two to three alternative phrasings.
+. Search the vector database with each query
+. Merge the documents retrieved from the different search runs and send them to the LLM.
+
+Each query variant can surface different relevant documents, giving you broader coverage of the content in your knowledge base.
+
+[[multi_query_schema]]
+.How multi-query retrieval works
+image::img/ch07_images/multi_query_retrieval_visual.png[Flowchart of multi-query retrieval showing original user query branching to three parallel searches for different aspects, merged document sets, and final LLM response]
+
+A sample user query might be: "What are the benefits of renewable energy?" Multi-query retrieval breaks this straightforward-sounding question into different facets that matter for answering it well.
+
+In this case, three sample queries derived from the original query could be:
+
+. What are the environmental benefits of renewable energy?
+. How does renewable energy contribute to economic growth?
+. What are the drawbacks of renewable energy?
+
+Each of these targets a different aspect that may be relevant to answering the original question. Based on what the LLM knows about the world, environmental impact, economic effects, and potential challenges are all likely to be important for generating a thorough answer.
+
+For the practical example in this recipe, you use an OpenAI LLM to generate multiple variations of the original query. To ensure the result is strictly a list of strings, the code defines a retrieval template using Pydantic. To run the code, install the OpenAI SDK and Pydantic:
+
+[source,bash]
+----
+pip install openai pydantic
+----
+
+The following code shows a prompt template you can use to instruct the LLM to rephrase the original query into several subqueries. This prompt is intentionally simple: it asks for diverse variations of the same query and clarifies the purpose of retrieving documents from a vector database and mitigating limitations of distance-based similarity search.
+
+[source, python,indent=0]
+----
+from openai import OpenAI
+from pydantic import BaseModel
+import os
+
+client = OpenAI()
+
+question = "What are the benefits of renewable energy?"
+
+query_prompt = f"""You are an AI language model assistant. Your task is
+to create three alternative versions of the provided user query to
+enhance the retrieval of relevant documents from a vector database.
+By offering diverse variations of the query, your goal is to help
+mitigate the limitations of distance-based similarity search. Provide
+these alternative queries, each on a new line.
+
+Original query: {question}
+"""
+
+# send the query prompt to OpenAI
+class QueryVariations(BaseModel):
+    queries: list[str]
+
+completion = client.beta.chat.completions.parse(
+    model="gpt-5-mini",
+    messages=[
+        {
+            "role": "user",
+            "content": query_prompt,
+        },
+    ],
+    response_format=QueryVariations,
+)
+
+queries = completion.choices[0].message.parsed.queries
+----
+
+<<screenshot_generating_multiple_queries>> shows the output. In this example, the model generates three alternative versions of the same question. The original question is: “What are the benefits of renewable energy?”
+
+[[screenshot_generating_multiple_queries]]
+.The derived versions of the query
+image::img/ch07_images/screenshot_generating_multiple_queries.png[Screenshot showing Pydantic QueryVariations response with three alternative query phrasings derived from original question]
+
+Next, the retrieval step performs a semantic search for all three generated queries plus the original query. That means four vector searches in total, returning four sets of results. You can then use a merger to combine these results, and, if needed, apply a reranking method to score the retrieved snippets and keep only the best-matching ones. Reranking is covered in <<recipe_reranking>>.
+
+==== Discussion
+
+Multi-query retrieval works by expanding one query into N variants, running N vector searches, and merging results. The mechanism exploits the fact that different phrasings surface different documents, improving recall when the original query misses relevant content due to vocabulary mismatch.
+
+[NOTE]
+====
+Recall measures how many relevant documents the retriever finds out of all relevant documents that exist in your database. For RAG systems, high recall means the retriever successfully finds most of the useful information available, even if it also retrieves some irrelevant content that gets filtered later.
+====
+
+Use multi-query retrieval when user questions are broad or ambiguous ("renewable energy benefits" can mean environmental, economic, or social), single queries consistently miss relevant documents your eval set shows exist, or improving recall justifies the N× search cost.
+
+Skip it when users ask narrow, specific questions that single queries handle well, your retrieval latency budget can't absorb N parallel searches plus one LLM call, or eval metrics show single-query retrieval already achieves target recall.
+
+The main trade-off is cost and latency versus recall. Running three searches plus one LLM call for query generation roughly triples retrieval time and compute cost. This makes sense for complex research queries but not for simple FAQ lookups.
+
+Multi-query differs from query decomposition: multi-query generates semantically similar variants of the same question, while decomposition breaks complex questions into distinct sub-questions that need separate answers. Combine both when you have complex multi-part questions that also benefit from multiple phrasings per part.
+
+
+==== See Also
+
+* https://developers.llamaindex.ai/python/examples/retrievers/multi_query_retriever[LlamaIndex multi-query retriever tutorial] shows how to combine retrieval results from multiple queries and indexes.
+* https://docs.langchain.com/oss/python/integrations/retrievers/multi_query_retriever[LangChain MultiQueryRetriever] provides an alternative implementation with result merging.
+* https://docs.pinecone.io/guides/search/query-expansion[Pinecone query expansion guide] covers multi-query strategies and evaluation methods.
+
+[[recipe_query_routing_system]]
+=== Addressing Complex Requests by Designing a Query Routing System
+
+==== Problem
+
+You want to handle complex user questions by directing them to the right data source.
+
+==== Solution
+
+A query routing system selects the most suitable tool or data source to solve a user's query.
+
+For example, a user asking for the result of multiplying 87 by 99 is requesting a basic mathematical operation that is best handled by a calculator tool. By contrast, a question about Google's revenue in a particular year is better handled via vector search, because the answer is likely written in one of Google's financial reports.
+
+If you have a RAG system connected to multiple data sources and tools that can perform a certain action, you need an orchestrator that routes each question to the right component.
+
+<<image_query_routing_function_calling>> shows a basic example of such a system. It has access to financial reports for multiple companies, for example, a knowledge store containing Microsoft revenue data and Google financial figures. In addition, it is connected to an SQL database that contains time-series data such as each company's share price.
+
+The router selects the data source that best fits the user's question. For complex questions, the router can also break the task into multiple subquestions that can be answered using different data sources and tools, then merge the results of the different queries into a final answer.
+
+[[image_query_routing_function_calling]]
+.Query routing with function calling models. Here, the agent can query either the vector database or the SQL database. The agent should decide which route is most appropriate.
+image::img/ch07_images/query_routing_system.png[Architecture diagram showing query routing: user question routed by agent to either vector database for semantic retrieval OR SQL database for structured data, with examples of question-to-source mapping]
+
+The practical example in this recipe uses an LLM-based router. An efficient model is prompted with the available functions, tools, and data sources, and it decides where to retrieve the information from.
+
+Typically, every tool or database that can deliver a particular kind of information is exposed as a function. The router selects which function to call, and the Python code executes the function.
+
+[source,shell]
+----
+pip install openai pydantic
+----
+
+The following code defines a prompt that instructs the model to choose between three different tools:
+
+. A tool connected to a vector database with general football knowledge, for questions such as "What is the offside rule in football?”.
+. A tool connected to a vector database about tennis.
+. A tool that simulates a connection to an SQL database holding the latest football match results.
+
+
+The code below implements this router by defining a Pydantic schema that constrains the LLM to select one of these three tools. Based on the user’s question, the router step calls the LLM and lets it decide which tool to use. The LLM returns only a string label identifying the selected tool.
+
+[source, python,indent=0]
+----
+from pydantic import BaseModel
+from openai import OpenAI
+
+client = OpenAI()
+
+user_queries = [
+    {
+        "query": "Who is the all-time top scorer in the FIFA World Cup?",
+        "selected_data_source": None,
+    },
+    {
+        "query": "What are the four Grand Slam tennis tournaments?",
+        "selected_data_source": None,
+    },
+    {
+        "query": "Did Manchester United win their last game?",
+        "selected_data_source": None,
+    },
+]
+
+prompt = f"""
+You are an expert at routing a user question to the appropriate
+data source. Given a user question choose which of the data sources
+in list_of_data_sources is the best to answer the question.
+"""
+
+from typing import Literal
+from pydantic import Field
+
+class RouterDecision(BaseModel):
+    data_source: Literal[
+        "general_football_knowledge",
+        "general_tennis_knowledge",
+        "latest_football_results_sql",
+    ] = Field(
+        ...,
+        description="The best data source to answer the question."
+    )
+
+for user_query in user_queries:
+    completion = client.beta.chat.completions.parse(
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": user_query["query"]},
+        ],
+        model="gpt-5-mini",
+        response_format=RouterDecision,
+    )
+    user_query["selected_data_source"] = completion.choices[
+        0
+    ].message.parsed.data_source
+----
+
+<<screenshot_results_query_routing_system>> shows the results of the query routing system.
+
+[[screenshot_results_query_routing_system]]
+.Screenshot: Query routing system results
+image::img/ch07_images/screenshot_results_query_routing_system.png[Screenshot table with three rows showing query routing results: each user query routed to selected data source based on question type and content]
+
+The first query about the FIFA World Cup top scorer routes to general football knowledge. The second query about Grand Slam tournaments routes to tennis knowledge. The last query about Manchester United's recent match routes to the SQL database with latest results.
+
+For more complex questions, you can also instruct the model to break down the overall question into multiple subqueries. Each subquery can be routed to a different tool, and a final LLM reasoning step consolidates the results.
+
+==== Discussion
+
+Query routing works by delegating retrieval decisions to a classifier that selects the appropriate data source or tool. The mechanism is simple: analyze the query, pick the best source, execute the retrieval. The code above demonstrates the routing decision. In a complete implementation, you would execute the appropriate retrieval function (e.g., `search_vector_db(query)` for knowledge bases or `query_sql_db(query)` for structured data) based on the router's selection.
+
+Use routing when you have multiple distinct data sources (vector stores, SQL databases, APIs) and queries clearly map to one source, query types are predictable enough to classify reliably, or the cost of searching wrong sources (irrelevant results, wasted compute) exceeds routing overhead.
+
+Skip routing when you have a single data source, it's faster to search everything and filter than to route first, or your queries are too ambiguous for reliable classification.
+
+LLM-based routing adds 500ms-2s latency per request. While 2 seconds isn't necessarily a dealbreaker, it adds noticeable delay to user-facing chat applications where users expect quick responses. It works well for asynchronous workflows like batch processing or email automation. Two faster alternatives exist:
+
+1. Majority vote: Search all collections and route to the one with the most results. Latency matches a single search but multiplies compute cost.
+
+2. Embedding classifier: Train a lightweight model to predict the best collection from query embeddings. Adds 10-50ms latency with minimal compute overhead.
+
+Decision framework: Start with LLM routing to validate your routing logic. If latency becomes a problem and collections are topically distinct, switch to embedding classifier. If collections overlap heavily, LLM routing may be your only reliable option despite the latency cost.
+
+Routing differs from metadata filtering: routing selects between separate data sources before search, while filtering narrows results within a single source. Combine both when queries need source selection (routing) and then category filtering (metadata) within that source.
+
+<<image_alternative_query_routers>> shows alternative approaches to build a query routing system.
+
+[[image_alternative_query_routers]]
+.Alternative approaches to build a query routing system
+image::img/ch07_images/alternative_query_routers.png[Two alternative query routing architectures: Left side shows majority vote approach with top N results per collection, Right side shows embedding classification model to predict best collection before vector search]
+
+[TIP]
+====
+Frameworks like LangChain, LlamaIndex, Amazon Bedrock Agents, and Azure AI Agent Service offer pre-built routing solutions. However, since a router is often just a well-crafted prompt, consider whether you need the additional complexity before adding framework dependencies.
+====
+
+==== See Also
+
+* https://developers.llamaindex.ai/python/examples/workflow/router_query_engine[LlamaIndex router query engine] provides a complete routing implementation for multi-source systems.
+* https://docs.langchain.com/oss/python/langchain/multi-agent/router[LangChain multi-agent router] offers routing components for agents and workflows.
+* https://docs.aws.amazon.com/bedrock/latest/userguide/agents-routing.html[AWS Bedrock Agents routing] demonstrates production routing patterns for enterprise systems.
+
+[[recipe_auto_merging_retriever]]
+=== Enhancing Retrieved Documents by Designing an Auto-Merging Retriever
+
+==== Problem
+
+You want to optimize retrieval and generation by using small text chunks for semantic search, while providing larger parent chunks to the LLM for the generation step.
+
+==== Solution
+
+An auto-merging retriever organizes text into smaller child chunks linked to larger parent chunks. Child chunks are used for vector search because they're focused enough to capture distinct information units. After retrieval, the system counts how many child chunks belong to the same parent. If a threshold number of child chunks from a given parent are identified as relevant, the system provides the entire parent chunk to the LLM, giving it broader context for generation.
+
+<<image_auto_merging_retrieval>> shows a three-level tree structure with parent nodes at the top, child nodes in the middle, and leaf nodes at the bottom. The leaf nodes are used for semantic search. If a threshold number of leaf nodes from a specific child or parent node are retrieved, the system merges them and provides the whole child or parent chunk to the prompt. For example, if leaf nodes 1, 2, and 5 are relevant, and two of them belong to child node 1, the system retrieves the complete text from child node 1, but from child node 2 it retrieves only leaf node 5.
+
+[[image_auto_merging_retrieval]]
+.How the auto-merging retriever works: parent and child nodes
+image::img/ch07_images/parents_merging_retriever.png[Hierarchical tree diagram of auto-merging retriever with three levels: parent nodes at top, child nodes in middle, leaf nodes at bottom used for semantic search. Shows merging logic where sufficient child or leaf matches trigger retrieval of parent or child chunks with broader context]
+
+
+The following code uses PostgreSQL as a vector database and OpenAI embedding models.
+
+[source,bash]
+----
+pip install psycopg2 openai
+----
+
+The following code creates a simple two-level structure. Each child chunk contains roughly 250 characters, and four child chunks are merged into one parent chunk, resulting in roughly 1,000 characters per parent chunk. Each leaf node clearly belongs to exactly one parent node.
+
+To use these relationships later, each parent node and each leaf node has an ID. Additionally, each child chunk stores both the child node ID and the parent node ID in separate columns.
+
+
+[source, python,indent=0]
+----
+file_path = (
+    "../datasets/text_files/"
+    "random-text-about-5-different-stories-with-paragraphs.txt"
+)
+
+with open(file_path, "r", encoding="utf-8") as f:
+    text = f.read()
+
+leaf_node_size = 250  # size of the leaf nodes in characters
+parent_merge = 4  # number of leaf nodes to merge into a parent node
+parent_node_size = (
+    parent_merge * leaf_node_size
+)  # size of the parent nodes in characters
+text_chunks = []  # list to store the text chunk dictionaries
+
+for leaf_node_id in range(0, len(text) // leaf_node_size, 1):
+    parent_node_id = leaf_node_id // parent_merge
+    leaf_chunk_start = leaf_node_id * leaf_node_size
+    parent_chunk_start = parent_node_id * parent_node_size
+
+    text_chunk = {
+        "leaf_node_id": leaf_node_id,
+        "leaf_chunk": text[
+            leaf_chunk_start : leaf_chunk_start + leaf_node_size
+        ],
+        "parent_node_id": parent_node_id,
+        "parent_chunk": text[
+            parent_chunk_start : parent_chunk_start + parent_node_size
+        ],
+    }
+    text_chunks.append(text_chunk)
+----
+
+The following code creates the table that stores the leaf node, leaf chunk, leaf node ID, parent node, parent node ID, and the embeddings for the leaf chunk.
+
+[source, python,indent=0]
+----
+# Create a new table for storing chunks and embeddings
+cur.execute("""CREATE EXTENSION IF NOT EXISTS vector""")
+
+cur.execute(
+    """
+    CREATE TABLE auto_merging_retriever_text_chunks (
+        leaf_node_id SERIAL PRIMARY KEY,
+        leaf_chunk TEXT,
+        parent_node_id INTEGER,
+        parent_chunk TEXT,
+        leaf_chunk_embedding VECTOR(1536)
+    )
+"""
+)
+conn.commit()
+----
+
+This table is then populated using the previously created dictionary.
+
+[source, python,indent=0]
+----
+from openai import OpenAI
+
+client = OpenAI()  # initialize OpenAI client
+
+# Insert chunks and their embeddings into the table
+for text_chunk in text_chunks:
+    leaf_embedding = (
+        client.embeddings.create(
+            input=[text_chunk["leaf_chunk"]],
+            model="text-embedding-3-small"
+        )
+        .data[0]
+        .embedding
+    )
+
+    cur.execute(
+        """
+        INSERT INTO auto_merging_retriever_text_chunks
+        (leaf_node_id, leaf_chunk, parent_node_id, parent_chunk,
+         leaf_chunk_embedding)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (
+            text_chunk["leaf_node_id"],
+            text_chunk["leaf_chunk"],
+            text_chunk["parent_node_id"],
+            text_chunk["parent_chunk"],
+            leaf_embedding,
+        ),
+    )
+conn.commit()
+----
+
+When a user now asks a question, perform a vector search over the leaf chunks. After the vector search, count whether any parent node has more than two leaf nodes marked as relevant. For those parent nodes, retrieve the parent text chunk via the parent node ID and provide the parent chunk to the generation model.
+
+==== Discussion
+
+Auto-merging searches at the child level for precision, then expands to parent chunks when multiple children from the same parent are relevant.
+
+Use auto-merging when your documents have strong hierarchical structure (books with chapters and sections, research papers with sections), retrieval quality suffers from information spanning multiple chunks, or evaluation shows larger context chunks improve generation quality without excessive prompt bloat.
+
+Skip it when simple flat chunking works well, your documents lack clear hierarchy (FAQs, product descriptions), larger prompts increase costs without quality gains, or the added complexity of maintaining parent-child relationships isn't justified by eval metrics.
+
+The main trade-off is storage complexity versus context quality. You store both parent and child chunks, maintain ID relationships, and implement merge logic. In exchange, you retrieve more coherent context when queries match multiple related fragments.
+
+
+==== See Also
+
+* https://developers.llamaindex.ai/python/examples/retrievers/auto_merging_retriever[LlamaIndex auto-merging retriever] works with hierarchical node parser for multi-level chunk hierarchies.
+* https://haystack.deepset.ai/blog/improve-retrieval-with-auto-merging[Haystack auto-merging implementation] uses hierarchical document splitter for parent-leaf structures.
+* https://github.com/pgvector/pgvector[pgvector documentation] covers efficient storage and retrieval of hierarchical embeddings in PostgreSQL.
+
+[[recipe_sentence_window_retrieval]]
+=== Retrieving More Complete Text Chunks with a Sentence Window Retriever
+
+==== Problem
+
+You want to use small text chunks for semantic search, but still provide enough surrounding context to the LLM so it doesn't miss important information around the retrieved sentences.
+
+==== Solution
+
+A sentence window retriever adds a few sentences before and after the most relevant chunk to provide additional context. <<image_sentence_window_retrieval>> shows an example with a question about FC Bayern Munich. A semantic search might identify a paragraph about recent successes and titles, but cut the historical context explaining what the club is, where the name comes from, and where it is located. Including the surrounding sentences ensures this relevant context reaches the prompt.
+
+[[image_sentence_window_retrieval]]
+.How sentence window retrieval works
+image::img/ch07_images/sentence_window_retrieval.png[Diagram showing sentence window concept: semantic search identifies relevant paragraph, sentence window expansion adds context before and after, complete historical and contextual information preserved]
+
+In <<sentence_window_retriever_in_action>>, the sentence window is defined by three text chunks. The original document is split into small text elements for vector search. If element 4 is identified as relevant, the full window including elements 3, 4, and 5 is sent to the LLM.
+
+[[sentence_window_retriever_in_action]]
+.How the sentence window retriever works in practice
+image::img/ch07_images/sentence_window_retriever_in_action.png[Sequential text chunk diagram showing chunks 1-5, with one element highlighted as relevant from semantic search, window expands to include adjacent chunks before sending to LLM for generation]
+
+You need a vector store that can store the text chunks, their embeddings, and the original order of the chunks in the source document. This recipe uses PostgreSQL as the vector database and the psycopg2 package to connect from Python.
+
+[source,bash]
+----
+pip install psycopg2
+----
+
+The following code snippet defines the table you need to create. It stores the chunk ID, the chunk text, the chunk embedding, and a document ID.
+
+When loading documents into the vector database, ensure the chunk ID reflects the original order. The first text snippet should have chunk ID 1, the second chunk ID 2, and so on. This later allows you to retrieve the chunks immediately before and after the chunk returned by semantic search.
+
+[source, python,indent=0]
+----
+cur.execute(
+    """
+    CREATE TABLE sentence_window_retriever_text_chunks (
+        chunk_id SERIAL PRIMARY KEY,
+        chunk TEXT,
+        chunk_embedding VECTOR(1536)
+    )
+"""
+)
+conn.commit()
+----
+
+To fill the table, split the text, generate embeddings, and insert them as in previous recipes. The important part is that chunk IDs are sequential, showing the order of text in the document. Split the document into small chunks of roughly 250 tokens. When a chunk is identified as relevant during semantic search, select the chunk before and after it, then provide the combined window of roughly 750 tokens to the LLM.
+
+This helps ensure important information isn't separated across chunk boundaries. It also increases the likelihood that relevant surrounding context is included.
+
+==== Discussion
+
+Sentence window retrieval works by expanding retrieved chunks with adjacent context from the original document. The mechanism is simple: identify the most relevant chunk via semantic search, then include N chunks before and after based on their sequential position in the source document.
+
+Use sentence window retrieval when your chunks are small (200-500 tokens) for retrieval precision, adjacent context frequently matters for understanding (legal docs, technical manuals, narrative text), and expanding by 1-2 chunks doesn't bloat your prompt excessively relative to your model's context limit.
+
+Skip it when your chunks are already 500+ tokens with plenty of context, documents are FAQ-style where each chunk is self-contained, or evaluation metrics show the added complexity provides no quality improvement.
+
+The main trade-off is prompt size versus completeness. Expanding from 1,000 to 3,000 tokens per retrieved chunk triples context length, increasing cost and latency. The benefit is reducing boundary effects where relevant information gets split across chunk edges.
+
+Sentence window differs from auto-merging: window uses fixed positional expansion (always add N adjacent chunks) regardless of content, while auto-merging uses relevance-based expansion (merge to parent only when multiple children match). Sentence window is simpler to implement but less adaptive. Use sentence window for straightforward positional context needs; use auto-merging when document structure and relevance patterns should drive expansion decisions.
+
+==== See Also
+
+* https://developers.llamaindex.ai/python/examples/node_postprocessor/metadata_replacement[LlamaIndex sentence window retriever] shows a complete implementation with metadata replacement for context expansion.
+* https://docs.langchain.com/oss/python/integrations/retrievers/parent_document_retriever[LangChain ParentDocumentRetriever] provides a similar approach for retrieving parent documents with child chunks.
+* https://docs.pinecone.io/guides/search/chunking[Pinecone chunking strategies guide] covers window-based retrieval and chunk size optimization.
+
+[[recipe_reranking]]
+=== Improving Retrieval Relevancy with Reranking Methods
+
+==== Problem
+
+You have a system that retrieves documents from different databases and tools, and you want to filter out the most relevant documents by reranking the retrieved results.
+
+==== Solution
+
+Earlier recipes in this chapter described techniques in which multiple queries are executed, each returning potentially different results. The challenge is merging these results while identifying which documents truly matter for the final answer.
+
+When you use HyDE, you generate multiple hypothetical documents and run vector search multiple times. Multi-query retrieval executes several reformulated queries in parallel. Agent systems may query different tools such as SQL databases, vector stores, APIs, or Python calculations. All these approaches produce a combined result set that needs filtering.
+
+Reranking addresses this by scoring merged results for relevance, keeping only the top items. This reduces noise and improves the quality of the final prompt. <<image_reranking_schema>> visualizes the process.
+
+[[image_reranking_schema]]
+.How to apply reranking to the retrieved documents
+image::img/ch07_images/reranking_model.png[Process flow diagram of reranking: three parallel semantic searches merge results into single list, LLM reranking step assigns relevance scores, filtered top-K results sent to final generation model. Illustrates deduplication and relevance scoring]
+
+The diagram shows three different semantic searches, but in practice it could be any kind of retrieval step: SQL databases, vector stores, external APIs, or Python calculations. You merge all results into a single list, then filter the combined set before the LLM step.
+
+The code in this recipe uses an LLM-based reranker. An efficient LLM reviews the retrieved documents and assesses their relevance. This recipe uses an OpenAI model to rerank the results and returns them using a response schema defined as a Pydantic model.
+
+[source,bash]
+----
+pip install openai pydantic
+----
+
+The following example provides the reranker with all retrieved documents. The original user query is about Tesla and whether it will remain the market leader in electric vehicles. Upstream, you might use a multi-query approach that derives five subqueries, performs vector search for each of them, and then selects the best results per query. You then merge those results into a single set.
+
+The reranker in the following snippet uses an LLM to rank the relevance of the retrieved results.
+
+[source, python,indent=0]
+----
+import textwrap
+from openai import OpenAI
+from pydantic import BaseModel
+
+text_chunks = {
+    1: "Tesla's Supercharger network and tech lead face rising "
+    "competition from BYD and established automakers.",
+    2: "Tesla's production grows, but price competition threatens "
+    "its market share.",
+    3: "The automotive industry is shifting to EVs due to climate "
+    "change and regulations.",
+    4: "Semiconductor shortages are disrupting automotive supply "
+    "chains.",
+    5: "Consumer demand for autonomous driving and advanced tech "
+    "impacts EV competition.",
+}
+
+prompt = textwrap.dedent(
+    f""""
+    Query: Will Tesla remain the market leader in electric vehicles?
+
+    Documents:
+        1. {text_chunks[1]}
+        2. {text_chunks[2]}
+        3. {text_chunks[3]}
+        4. {text_chunks[4]}
+        5. {text_chunks[5]}
+
+    Instructions:
+    Please assess the relevance of each document to the query and
+    provide a relevance score from 1 to 5, where 5 is the most relevant.
+
+    Relevance Scores:
+    """
+)
+----
+
+<<screenshot_reranking_results>> shows the reranking output: a new ordering of the documents. According to the LLM, the fifth text chunk appears to be the most relevant to the user's question, followed by chunks four, two, and one.
+
+[[screenshot_reranking_results]]
+.The reranking results
+image::img/ch07_images/screenshot_reranking_results.png[Screenshot of reranking results table showing multiple text chunks with assigned relevance scores on 1-5 scale, reordered from original semantic search output with highest relevance chunks prioritized]
+
+You still have the same five retrieved documents, but now you know which ones are most relevant. To improve response time and avoid adding too much noise to the final generation model, you can select only the top three text chunks and combine them into the final prompt.
+
+==== Discussion
+
+Reranking scores and filters merged retrieval results before generation, keeping only the top-K most relevant items.
+
+Use reranking when you're combining 20+ candidates from different sources, initial retrieval is noisy with many marginally relevant results, or filtering to top-5 after reranking improves quality versus taking top-5 from each source separately.
+
+Skip reranking when you have a single retrieval source with good native ranking, your retrieval already returns highly relevant results, or the added LLM call or cross-encoder cost isn't justified by quality gains measured through precision@K metrics.
+
+The main trade-off is latency and cost versus relevance. LLM-based reranking adds one inference call to process all candidates. Cross-encoder models are faster but still add overhead. In exchange, you get more relevant final results and can confidently filter from 50+ candidates down to 5-10 high-quality items.
+
+Reranking differs from initial retrieval scoring: initial scoring (cosine similarity, BM25) is fast but treats query and document independently, while reranking uses cross-attention between query and candidates for deeper relevance assessment. The two-stage approach balances speed (initial retrieval) and accuracy (reranking). Use reranking as a second pass over merged results, not as a replacement for fast initial retrieval.
+
+==== See Also
+
+* https://docs.langchain.com/oss/python/integrations/document_transformers/rankllm[LangChain RankLLM Reranker] provides LLM-based reranking for document relevance scoring.
+* https://developers.llamaindex.ai/python/examples/node_postprocessor/colbert_rerank[LlamaIndex ColbertRerank] uses ColBERT models for fast and accurate reranking.
+* https://docs.haystack.deepset.ai/docs/transformerssimilarityranker[Haystack SentenceTransformersSimilarityRanker] uses Hugging Face cross-encoder models for document ranking.
+
+[[recipe_query_decomposition]]
+=== Decomposing Complex Queries into Multiple Sub-Queries
+
+==== Problem
+
+You want to answer complex questions by breaking them down into simpler, manageable parts.
+
+==== Solution
+
+<<image_decomposition_of_complex_queries>> shows the end-to-end process:
+
+. The complex query is broken into simpler subqueries
+. Each subquery triggers a retrieval step
+. Retrieved context generates an answer for each subquery
+. A final reasoning step combines everything to produce one answer
+
+[[image_decomposition_of_complex_queries]]
+.How to decompose complex queries
+image::img/ch07_images/query_decomposition_process.png[Flowchart of query decomposition pipeline: complex user query undergoes LLM decomposition into multiple simplified subqueries, parallel retrieval steps, separate generation for each subquery, final reasoning step merging all answers into consolidated response]
+
+The code in this recipe uses an OpenAI LLM to break down a complex user query into simpler subqueries. It uses the OpenAI SDK and defines the response template as a Pydantic model.
+
+[source,shell]
+----
+pip install openai pydantic
+----
+
+The following code defines a Pydantic model that captures question-answer pairs. The final response is a list of questions, and each question is actually a Python object with the question and answer.
+
+The code snippet below defines the prompt instructions and the response template as a Pydantic model.
+
+[source, python,indent=0]
+----
+from pydantic import BaseModel
+from typing import Optional
+from openai import OpenAI
+
+class Question(BaseModel):
+    question: str
+    answer: Optional[str] = None
+
+class Questions(BaseModel):
+    questions: list[Question]
+
+splitter_prompt = """
+You are a helpful assistant for a RAG chatbot.
+
+Your job is to break down complex questions into simpler ones that
+are easy to answer. When the answers to these simpler questions are
+combined, they should fully answer the original question. If the
+question is already simple, leave it as it is. Handle one question
+at a time.
+
+Example:
+    1. Query: Did Microsoft or Google make more money last year?
+
+Decomposed Questions:
+    1. How much profit did Microsoft make last year?
+    2. How much profit did Google make last year?
+"""
+----
+
+Next, you apply these templates to a sample query about the benefits of renewable energy compared to fossil fuels. The question is not highly complex, but it is unclear from which angle the user is asking.
+
+Because the query is vague, a human would typically explore it from multiple perspectives to provide a complete answer. This RAG process does the same by splitting the original query into subqueries that approach the topic from different angles.
+
+[source, python,indent=0]
+----
+client = OpenAI()
+
+query = (
+    "What are the benefits of renewable energy compared to "
+    "fossil fuels?"
+)
+
+completion = client.beta.chat.completions.parse(
+    model="gpt-5-mini",
+    messages=[
+        {"role": "system", "content": splitter_prompt},
+        {"role": "user", "content": query},
+    ],
+    response_format=Questions,
+)
+
+decomposed_questions = completion.choices[0].message.parsed.questions
+----
+
+<<decomposing_complex_queries_into_multiple_sub_queries>> shows the result of the decomposition step. The LLM breaks down the original question about the benefits of renewable energy into five simpler subqueries. For example, the first subquery asks about the benefits of renewable energy, and the second asks about the benefits of using fossil fuels. Additional subqueries cover key aspects such as environmental impact, cost, and availability.
+
+[[decomposing_complex_queries_into_multiple_sub_queries]]
+.The decomposed subqueries
+image::img/ch07_images/decomposing_complex_queries_into_multiple_sub_queries.png[Screenshot of decomposed subqueries from complex question showing multiple simplified questions addressing different aspects like benefits, comparisons, cost analysis, and availability]
+
+The next step in the RAG system is to perform a semantic search for each subquery and generate separate answers. Once all subqueries are answered, the subqueries and their answers are fed into a final reasoning prompt. That prompt instructs the model to synthesize the insights into a single consolidated answer.
+
+==== Discussion
+
+Query decomposition breaks complex questions into simpler sub-questions, retrieves context for each independently, and synthesizes sub-answers into a final response.
+
+Use decomposition when questions naturally require aggregating information from different sources ("Compare X and Y" needs X data and Y data separately), breaking down the query makes each sub-search more precise, you can run subqueries in parallel to limit latency impact, or intermediate answers help you debug why final answers fail.
+
+Skip it when questions are simple and direct ("What is X?"), a single retrieval call returns sufficient context, the added LLM calls (decomposition + final reasoning) make response time unacceptable, or your evaluation shows single-step retrieval performs equally well.
+
+The main trade-off is complexity and latency versus completeness. Decomposition adds two LLM calls (one for breaking down, one for synthesis) plus multiple retrieval steps. In exchange, you can answer questions that no single vector search handles well, like "Which company was more profitable: Microsoft or Google?"
+
+Query decomposition differs from multi-query retrieval: decomposition creates distinct sub-questions requiring separate answers that get combined ("How much did Microsoft earn?" + "How much did Google earn?"), while multi-query creates semantically similar variants of one question to improve recall. Combine both when complex questions also benefit from multiple phrasings per sub-question.
+
+==== See Also
+
+* https://developers.llamaindex.ai/python/examples/query_transformations/query_transform_cookbook[LlamaIndex Query Transformations Cookbook] provides sub-question decomposition examples and implementation patterns.
+* https://haystack.deepset.ai/blog/query-decomposition[Haystack query decomposition guide] offers a practical walkthrough with code examples.
+* https://arxiv.org/abs/2212.10509[Demonstrate-Search-Predict paper] introduced multi-hop question decomposition for retrieval systems.
+
+

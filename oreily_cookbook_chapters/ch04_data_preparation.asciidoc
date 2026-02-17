@@ -1,0 +1,1024 @@
+[[ch02-data-processing]]
+== Data Preparation
+
+When feeding longer texts into RAG systems, preprocessing breaks the document into smaller chunks. Each chunk is converted into an embedding vector that captures its semantic meaning. During retrieval, the system measures similarity by calculating distances between these vectors to find relevant text.
+
+This works best when each chunk contains exactly one piece of information and can be understood independently. The key challenge is preparing chunks that stand alone without relying on surrounding context. A robust processing pipeline cleans raw text and splits it at the right points to produce meaningful chunks.
+
+<<image_data_processing>> illustrates common preprocessing techniques, including:
+
+* Text preparation: Replace abbreviations and clean the text
+* Metadata collection: Store page numbers, source, and author
+* Text splitting: Apply character, recursive, semantic, or agentic chunking
+
+The goal is producing clear, unambiguous chunks that don't require surrounding context.
+
+[[image_data_processing]]
+.The simplified RAG indexing pipeline including potential data processing techniques
+image::img/ch04_images/data-processing-steps.png[Diagram showing the RAG data processing pipeline with three sequential steps: text preparation with abbreviation replacement and cleaning, metadata collection displaying page numbers and source information, and text splitting depicting character, recursive, semantic, and agentic splitting techniques feeding into embeddings generation]
+
+
+Store useful metadata with each chunk to enable filtering during retrieval, making the process both faster and more accurate.
+
+You can find all the code examples for this chapter in the https://github.com/polzerdo55862/RAG-with-Python-Cookbook[book's GitHub repository].
+
+[[chapter_adding_metadata]]
+=== Adding Metadata to Enable Metadata Filtering
+
+==== Problem
+
+You want to store metadata alongside the text chunks in your vector store so that retrieval can apply metadata filtering.
+
+==== Solution
+
+Extract existing metadata from documents and compute additional fields. For specialized use cases, optionally enrich with LLM-generated metadata. Follow these stages:
+
+. Extract metadata already stored in the document (author, title, creation date)
+. Add computed metadata fields (file location, size, page count, text length)
+. (Optional) Generate content-based metadata by analyzing document text with an LLM
+. Save the metadata along with the text chunk
+
+<<image_extract_metadata>> illustrates this workflow:
+
+[[image_extract_metadata]]
+.How to extract and generate metadata fields
+image::img/ch04_images/add-metadata-to-enable-metadata-filtering.png[Workflow diagram illustrating the three-stage metadata extraction and generation process: extracting existing document metadata like author and creation date, adding computed fields like file location and page count, and LLM-enriched metadata derivation for domain-specific attributes]
+
+To follow along, install the required libraries:
+
+[source, bash]
+----
+pip install PyPDF2 openai pydantic
+----
+
+The following code snippet reads a PDF and stores its metadata fields in a dictionary. How complete these fields are depends heavily on the software that created the PDF. Many PDFs include author, title, subject, creator, creation date, and modification date.
+
+[source, python, indent=0]
+----
+import PyPDF2
+import os
+
+file_path = "../datasets/pdf_files/attention_is_all_you_need_paper.pdf"
+
+with open(file_path, "rb") as file:
+    reader = PyPDF2.PdfReader(file)
+    metadata = reader.metadata
+
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+----
+
+The screenshot in <<image_screenshot_existing_metadata>> shows the existing metadata fields extracted from the sample PDF document.
+
+[[image_screenshot_existing_metadata]]
+.Screenshot of existing metadata fields extracted from a PDF
+image::img/ch04_images/screenshot_existing_metadata.png[Screenshot of a Python dictionary displaying native PDF metadata fields extracted from a research paper using PyPDF2, including fields such as Author, Creator, CreationDate, and LastModificationDate with their corresponding values]
+
+Next, the following code adds additional data points to your metadata dictionary: file size, filename, file path, page count, and total text length.
+
+[source, python, indent=0]
+----
+metadata_ext = dict(metadata)
+metadata_ext["page_count"] = len(reader.pages)
+metadata_ext["file_size"] = os.path.getsize(file_path)
+metadata_ext["file_name"] = os.path.basename(file_path)
+metadata_ext["file_path"] = file_path
+metadata_ext["text_length"] = len(text)
+----
+
+For specialized scenarios, you can use LLMs to enrich metadata with content-based fields. In the sample PDF loaded in this recipe, the existing `Author` field is empty. Since the PDF is a scientific paper, the author name should appear somewhere in the content.
+
+To ensure the extracted information is returned as clean values in the correct format, the process in <<image_extract_metadata_using_llms>> defines a `Pydantic` model describing the expected data, then provides a system instruction that asks the model to populate that schema from the document text. Finally, send both to the LLM.
+
+[[image_extract_metadata_using_llms]]
+.Generate metadata from the document text by using LLMs
+image::img/ch04_images/generate_structured_output_metadata.png[Process diagram showing LLM-based metadata extraction: a Pydantic schema defining author contact fields, document text, and a system prompt flow into an LLM, which outputs structured author contact information]
+
+The following code implements these steps. It defines a Pydantic model for the author contact information (author name, email address, and company name) and uses OpenAI Structured Outputs to extract those fields.
+
+[source, python, indent=0]
+----
+from pydantic import BaseModel
+from openai import OpenAI
+
+client = OpenAI()
+
+class AuthorContact(BaseModel):
+    name: str
+    company: str
+    email: list[str]
+
+class Contacts(BaseModel):
+    entries: list[AuthorContact]
+
+system_message = """Extract the contact information of all authors."""
+
+response = client.beta.chat.completions.parse(
+    model="gpt-5-mini",
+    messages=[
+        {
+            "role": "system",
+            "content": system_message,
+        },
+        {
+            "role": "user",
+            "content": text,
+        },
+    ],
+    response_format=Contacts,
+)
+
+author_contacts = response.choices[0].message.parsed
+
+metadata_ext_llm = dict(metadata_ext)
+metadata_ext_llm["author_contacts"] = author_contacts
+----
+
+The screenshot in <<image_screenshot_generate_new_metadata>> shows the full metadata dictionary after enrichment. With native PDF fields, computed metadata, and optional LLM-generated fields, this provides a strong foundation for the retriever to run targeted searches, such as filtering by creation date or by a specific author.
+
+[[image_screenshot_generate_new_metadata]]
+.Screenshot of the extended metadata dictionary, including the generated metadata fields
+image::img/ch04_images/screenshot_metadata_final_extended_llm.png[Screenshot of an extended Python dictionary displaying the complete metadata after enrichment, including original PDF fields, computed metadata like page count and file size, and LLM-generated author contact information with multiple email addresses]
+
+==== Discussion
+
+Metadata filtering works by narrowing the search space before semantic similarity calculations. Vector databases first apply metadata constraints (e.g., `author == "Smith"` or `date >= 2023`), then perform semantic search only on the filtered subset. This reduces false positives from semantically similar but contextually irrelevant content.
+
+.When to use metadata filtering
+Use metadata filtering when your documents come from clearly different buckets and users usually care about one bucket at a time.
+
+* You store HR, engineering, and finance documents in the same vector index, for example, filter to `department = "engineering"` before searching
+
+* You index content from different years or quarters, for example, search only `year = 2024` when the user asks about last year
+
+* You mix manuals, tickets, and emails, for example, filter to `source = "manual"` to avoid pulling support chatter
+
+* Many documents use the same words for different things, for example, "release" appears in both product docs and press releases
+
+<<figure_semantical_similar_does_not_mean_relevant>> illustrates why metadata matters: content from related fields can be semantically similar but contextually irrelevant. Information about antioxidants applies to both medicine and environmental engineering. Metadata filtering separates these contexts before semantic search, preventing false positives from overlapping terminology.
+
+[[figure_semantical_similar_does_not_mean_relevant]]
+.How two semantically similar information sets can be contradictory
+image::img/ch04_images/semantic-similar-information-can-be-contradictory.png[Diagram showing how semantically similar content from different domains can be contradictory, comparing antioxidant information in medicine versus environmental engineering contexts, illustrating why metadata filtering is essential before semantic vector search]
+
+[TIP]
+====
+LLM-generated metadata adds preprocessing cost and latency. For a 1,000-document corpus, expect several minutes and $1-5 in API costs. Balance this against improved retrieval precision for your use case.
+====
+
+==== See Also
+
+* https://platform.openai.com/docs/guides/structured-outputs[OpenAI structured outputs guide] for extracting metadata fields with LLMs
+* https://docs.pinecone.io/guides/search/filter-by-metadata[Pinecone metadata filtering documentation]
+* https://docs.trychroma.com/docs/querying-collections/metadata-filtering[ChromaDB metadata filtering documentation]
+
+[[chapter_enhancing_data_quality]]
+=== Enhancing Data Quality by Replacing Abbreviations and Technical Terms
+
+==== Problem
+
+You want every text chunk in your vector store to be self-explanatory so it can be understood as a standalone piece of information.
+
+==== Solution
+
+Use regular expressions and LLMs to expand abbreviations and clarify technical terms before generating embeddings. This makes text chunks self-explanatory when stored as standalone pieces.
+
+First, install the OpenAI SDK:
+
+[source,console]
+----
+pip install openai
+----
+
+The following code loads a text file and replaces abbreviations with their long form followed by the abbreviation in parentheses:
+
+[source, python, indent=0]
+----
+import re
+
+abbreviations_dict = {
+    "NLP": "Natural Language Processing",
+    "RNN": "Recurrent Neural Network",
+    "LSTM": "Long Short-Term Memory",
+    "GRU": "Gated Recurrent Unit",
+    "TF": "Transformer",
+    "MHA": "Multi-Head Attention",
+    "FFN": "Feed-Forward Network",
+}
+
+file_path = "../datasets/text_files/blog_post_transformers.txt"
+with open(file_path, "r") as file:
+    text = file.read()
+
+# Replace abbreviations in the text
+for abbr, full_form in abbreviations_dict.items():
+    text = re.sub(rf"\b{abbr}\b", f"{full_form} ({abbr})", text)
+----
+
+In the next example, use an LLM to expand abbreviations and clarify technical terms from extracted text:
+
+[source, python, indent=0]
+----
+import os
+from openai import OpenAI
+
+file_path = "../datasets/text_files/EMEA_drives_revenue.txt"
+
+with open(file_path, "r") as file:
+    text = file.read()
+
+prompt = f"""
+    The text below contains a financial report including a lot of
+    abbreviations and technical terms from the finance domain.
+    Please replace the abbreviations with their full forms and
+    provide a brief explanation of the technical terms, so the
+    whole text gets easier to read and understandable for everyone.
+
+    Make sure it's easy enough, so that a 10-year-old school kid could
+    understand it.
+
+    Often used abbreviations are:
+    - EMEA: Europe, Middle East, and Africa
+    - BD: Business Development
+    - YoY: Year-over-Year
+    - APAC: Asia-Pacific
+
+    Text:
+    {text}
+    """.strip()
+
+client = OpenAI()
+chat_completion = client.chat.completions.create(
+    messages=[
+        {
+            "role": "user",
+            "content": prompt,
+        }
+    ],
+    model="gpt-5.2",
+)
+
+enhanced_text = chat_completion.choices[0].message.content
+----
+
+<<image_screenshot_enhanced_text>> shows the outcome: on the left, the raw extracted text from the slide; on the right, the preprocessed version, which includes a clear textual description of all information pieces, whether they come from the diagram or from the slide text. The LLM analyzes the full context and informational content of the slide and converts it into a textual form.
+
+[[image_screenshot_enhanced_text]]
+.Screenshot of enhanced text chunks after replacing abbreviations and technical terms
+image::img/ch04_images/screenshot_enhanced_text.png[Side-by-side screenshot comparing raw text extracted from a financial report slide with abbreviations like EMEA and YoY, versus enhanced text with expanded terms, simplified language suitable for accessibility, and integrated diagram information]
+
+==== Discussion
+
+When you expand abbreviations and clarify technical terms, each text chunk becomes understandable on its own. This matters because RAG systems retrieve chunks in isolation. The embedding model only sees the words inside the chunk. If those words are vague or abbreviated, the model has less semantic signal to work with.
+
+For example, "NLP" is much less informative than "Natural Language Processing." Users usually search with short or mixed language queries, and the embedding model benefits from having both the abbreviation and the expanded form available in the text.
+
+Why this works
+
+* Embeddings built from expanded terms contain richer semantic signals than acronyms alone
+* Queries like "NLP models", "language models", or "text understanding" still match chunks that contain the expanded phrase
+* Retrieved chunks are easier for the LLM to interpret without guessing what an acronym means
+
+When to use this
+
+* Technical documents full of acronyms
+* Financial or legal reports with shorthand
+* Medical or clinical text
+* Any document that will be read by people outside the original expert audience
+
+When not to use it
+
+* When abbreviations are the standard form, like HTTP in web development
+* When preprocessing very large collections would be too expensive
+* When you must ingest documents in real time with very low latency
+
+<<figure_enhance_data_granularity>> illustrates three common problems this solution addresses:
+
+* Abbreviations like "PO" (purchase order, post office, or product owner) become ambiguous without context.
+* References such as "MJ" lose meaning when isolated from their original context.
+* Image descriptions remain incomplete without the visual information.
+
+[[figure_enhance_data_granularity]]
+.The way that documents are structured influences the performance of our RAG system
+image::img/ch04_images/enhance-data-granularity.png[Illustration showing three data quality challenges: ambiguous abbreviation PO in procurement context, unexplained MJ reference without basketball context, and screenshot with caption from software tutorial showing incomplete textual representation without image information]
+
+<<table_techniques_to_enhance_data_quality>> shows additional techniques that improve chunk clarity:
+
+[[table_techniques_to_enhance_data_quality]]
+.Techniques to enhance data quality
+[cols="1,1,1",options="header"]
+|===
+|Technique |Instead of |Use
+
+|Adding contextual sentences
+|It improved efficiency by 40%.
+|The new indexing algorithm improved search efficiency by 40%.
+
+|Avoiding pronouns and implicit references
+|It was implemented last year.
+|The customer feedback system was implemented last year.
+
+|Preserving full names of entities
+|Google launched it in 2019.
+|Google launched the BERT language model in 2019.
+
+|Avoiding ambiguous words
+|The system works better now.
+|The system's response time improved from 500ms to 200ms after optimization.
+|===
+
+==== See Also
+
+* https://platform.openai.com/docs/guides/prompt-engineering[OpenAI prompt engineering guide] for using LLMs to enhance text quality
+
+[[chapter_hypothetical_questions]]
+=== Improving Search Accuracy by Creating Hypothetical Questions for Text Chunks
+
+==== Problem
+
+You want to improve retriever quality by comparing the user's question to hypothetical questions derived from text chunks, instead of comparing it directly to the text chunks.
+
+==== Solution
+
+<<image_how_to_generate_hypothetical_questions>> shows the full process: the preprocessing and indexing steps, as well as retrieval at runtime in the RAG app.
+
+Before indexing the data, you need to:
+
+. Load the data and split it into chunks.
+. Iterate over the chunks and generate at least one hypothetical question per text chunk.
+. Generate embeddings for each hypothetical question.
+. Store the hypothetical questions and their embeddings in the database.
+
+[[image_how_to_generate_hypothetical_questions]]
+.How to generate hypothetical questions using LLMs
+image::img/ch04_images/generate_hypothetical_questions.png[Process workflow diagram showing hypothetical question generation for RAG: load data and chunk text, iterate over chunks generating hypothetical questions using LLMs, create embeddings for each question, store in vector database, with runtime retrieval comparing user queries to hypothetical questions]
+
+Each hypothetical question links back to its original text chunk. During runtime of the RAG app, the retriever searches the hypothetical questions, but typically the underlying text chunks are what you pass to the LLM, so the model receives the full context rather than only the derived hypothetical questions.
+
+To execute the code, install OpenAI SDK and Pydantic.
+
+[source, bash]
+----
+pip install openai pydantic
+----
+
+The following code loads a chat history between two students discussing AI in manufacturing. The LLM analyzes the text and generates five hypothetical questions. Each question can be answered using the information contained in the text.
+
+[source, python, indent=0]
+----
+import textwrap
+from openai import OpenAI
+from pydantic import BaseModel
+
+file_path = "../datasets/text_files/AI_in_factories_chat.txt"
+
+with open(file_path, "r", encoding="utf-8") as file:
+    text = file.read()
+
+client = OpenAI()
+
+prompt = textwrap.dedent(
+    f"""
+    Below you can find a chat history between two students.
+
+    Please generate 5 hypothetical questions that could be
+    answered using the information from the discussion.
+    The questions should focus on key details, definitions, and
+    information present in the text.
+
+    Chat History:
+    {text}
+    """
+)
+
+class HypotheticalQuestions(BaseModel):
+    questions: list[str]
+
+result = client.beta.chat.completions.parse(
+    model="gpt-5-mini",
+    messages=[{"role": "user", "content": prompt}],
+    response_format=HypotheticalQuestions,
+)
+
+hypothetical_questions = result.choices[0].message.parsed.questions
+hypothetical_questions
+----
+
+<<image_screenshot_generate_hypothetical_questions>> shows the generated output.
+
+[[image_screenshot_generate_hypothetical_questions]]
+.Screenshot of generating hypothetical questions using LLMs
+image::img/ch04_images/screenshot_generate_hypothetical_questions.png[Screenshot displaying a list of five hypothetical questions generated by LLM from a student chat history about AI in manufacturing, showing how each question focuses on key details, definitions, and information present in the discussion]
+
+==== Discussion
+
+Hypothetical questions reduce the gap between how users ask things and how documents are written.
+Instead of embedding raw chunks like code, logs, or tables, you embed questions that describe what those chunks are about. This makes retrieval behave more like how users actually search.
+
+Why this works
+
+* Query embeddings are closer to question-style text than to raw technical content
+* Generated questions express the intent behind a chunk in natural language
+* This pulls hard-to-embed content like code and tables into the same semantic space as user queries
+
+When to use hypothetical questions
+
+* Documents contain code, configuration files, or database schemas
+* Content includes logs, transcripts, or chat histories
+* Data is stored in tables or other structured formats
+* Users typically ask natural language questions like "How do I" or "What is"
+
+When not to use them
+
+* Documents are already written as questions and answers, such as FAQs
+* You cannot afford the extra LLM calls during ingestion
+* The text is already clear, narrative prose
+* Ingestion must happen in real time and latency matters
+
+<<figure_semantical_alignment_issue>> illustrates the problem: code blocks, chat logs, and tables produce embeddings distant from natural language queries, even when semantically relevant. Hypothetical questions reposition this content closer to typical user question patterns in embedding space.
+
+[[figure_semantical_alignment_issue]]
+.Hypothetical questions are closer to the location of potential user questions in the embedding space
+image::img/ch04_images/why_we_should_generate_hypothetical_questions.png[Embedding space diagram showing the semantic alignment problem: user question vector far from text chunk vector despite relevance, contrasted with hypothetical questions positioned closer to typical user question locations in the embedding space, illustrating improved semantic similarity]
+
+At retrieval time, the system compares the user's query to stored hypothetical questions (not raw chunks). When a hypothetical question matches, the retriever fetches the original text chunk linked to that question. This provides the LLM with full context rather than only the derived questions.
+
+[NOTE]
+====
+This recipe addresses the semantic alignment problem during indexing by generating hypothetical questions from your text chunks. For an alternative approach that addresses alignment at query time, see the HyDE (Hypothetical Document Embeddings) recipe in <<chapter_07_retrieval>>. HyDE generates hypothetical documents from the user's query instead of preprocessing your data. You can use one or both techniques depending on your retrieval quality needs and performance requirements.
+====
+
+
+==== See Also
+
+These resources cover HyDE (Hypothetical Document Embeddings), which has become the more popular approach for addressing semantic alignment in retrieval. While HyDE generates hypothetical documents from queries at runtime, this recipe takes the inverse approach—generating hypothetical questions from your text chunks during indexing. HyDE implementations are more widely adopted because they don't require preprocessing all documents, though both techniques can be effective depending on your use case.
+
+* https://docs.haystack.deepset.ai/docs/hypothetical-document-embeddings-hyde[Haystack HyDE implementation]
+* https://docs.langchain.com/oss/python/integrations/retrievers[LangChain HyDE retriever API reference]
+* https://developers.llamaindex.ai/python/framework/optimizing/advanced_retrieval/query_transformations/[LlamaIndex query transformations]
+
+[[chapter_character_splitting]]
+=== Splitting Documents Using Character Splitting
+
+==== Problem
+
+You need to break down lengthy documents into smaller sections that are small enough to create embeddings using existing embedding models.
+
+==== Solution
+
+Character-based splitting is the simplest way to split text. It uses a fixed-size window that slides over the text and cuts out snippets. <<image_character_splitting>> illustrates this with an example. In this case, chunk 2 and chunk 3 overlap.
+
+[[image_character_splitting]]
+.Splitting text using a fixed character or token size
+image::img/ch04_images/text-splitting-with-overlap.png[Diagram illustrating character-based text splitting with a fixed-size window sliding over continuous text, showing three overlapping chunks where chunks 2 and 3 share overlapping text, demonstrating the simple approach but potential to split mid-sentence]
+
+The following code snippet uses a chunk length of 100 characters.
+
+[source, python, indent=0]
+----
+file_path = "../datasets/text_files/blog_post_transformers.txt"
+
+with open(file_path, "r") as file:
+    text = file.read()
+
+def split_by_characters(text, chunk_size, overlap):
+    chunks = []
+    step = max(1, chunk_size - overlap)
+
+    for start in range(0, len(text), step):
+        end = start + chunk_size
+        chunk = text[start:end]
+        if chunk:
+            chunks.append(chunk)
+
+    return chunks
+
+chunks = split_by_characters(text, chunk_size=100, overlap=20)
+----
+
+==== Discussion
+
+Character splitting works by moving a fixed-size window across text and extracting substrings. It ignores all document structure, treating text as a continuous stream of characters. This is the simplest chunking approach but also the least sophisticated. It counts characters and splits, often tearing sentences and paragraphs apart. <<image_character_splitting>> shows this clearly: chunk boundaries fall arbitrarily, potentially splitting words or breaking sentences mid-thought.
+
+When to use character splitting:
+
+* Raw audio or video transcriptions with no natural structure
+* Concatenated log files or data dumps without delimiters
+* Quick prototyping before implementing sophisticated chunking
+
+When NOT to use:
+
+* Any document with paragraph breaks, headings, or other structure markers
+* Content where mid-sentence splits damage meaning (most documents)
+
+[NOTE]
+====
+Overlap considerations: Setting an overlap (e.g., 20 characters) means consecutive chunks share text at their boundaries. This helps preserve context that spans chunk edges but increases storage requirements and redundancy.
+====
+
+<<table_character_splitting_alternatives>> summarizes when to use character splitting versus alternative approaches.
+
+[[table_character_splitting_alternatives]]
+.When to Use Character Splitting vs. Alternatives
+[cols="2,3", options="header"]
+|===
+|Scenario |Recommended Approach
+
+|Unstructured text like raw audio transcriptions where no natural boundaries exist
+|Character splitting
+
+|Structured documents (blog posts, reports)
+|Use recursive chunking (<<chapter_recursive_chunking>>) or document-aware splitting (<<chapter_document_aware_splitting>>) to preserve paragraphs and sections
+
+|Markup documents (Markdown, LaTeX)
+|Use document-aware splitting to leverage syntax as splitting cues
+
+|Complex unstructured text
+|Use semantic chunking (<<chapter_semantical_chunking>>) or agentic chunking (<<chapter_agentic_chunking>>) to find meaning-based breakpoints
+|===
+
+[[see_also_character_splitter]]
+==== See Also
+
+* https://docs.langchain.com/oss/python/integrations/splitters/character_text_splitter[LangChain character text splitter documentation]
+
+[[chapter_recursive_chunking]]
+=== Splitting Documents Using Recursive Text Splitters
+
+==== Problem
+
+You want to split documents that have a clear structure, including headings, chapters, and paragraphs, and by doing so, preserve this structure.
+
+==== Solution
+
+A recursive text splitter identifies characters that humans typically use to structure a document, such as newlines, spaces, and punctuation marks. It splits text at natural boundaries, favoring larger structural breaks like newlines first, then falling back to punctuation marks when chunk size limits are reached.
+
+<<image_recursive_chunking>> shows how an example text would be chunked. The first split is naturally at a newline; the second split (between chunk 2 and chunk 3) happens at a punctuation mark once a certain length is reached.
+
+[[image_recursive_chunking]]
+.Splitting text using recursive chunking
+image::img/ch04_images/recursive-chunking-visualized.png[Diagram showing recursive chunking process where text is split first at structural boundaries like newlines between chunks, and then at punctuation marks when chunk size limits are reached, preserving document structure better than fixed-size splitting]
+
+This recipe uses the LangChain text splitters for demonstration purposes.
+
+[TIP]
+====
+Alternatively you can define your own recursive text splitter using regular expressions to identify separators such as newlines and punctuation marks. This way you avoid adding dependencies on orchestration frameworks to your project, and your implementation is more lightweight.
+====
+
+Install the required packages:
+
+[source, bash]
+----
+pip install PyPDF2 langchain-text-splitters
+----
+
+The code below loads and chunks a newsletter page. The splitter counts characters (or tokens), and once it reaches the defined maximum size, it looks for the next separator to split the text.
+
+[source, python, indent=0]
+----
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+import PyPDF2
+
+file_path = "../datasets/pdf_files/daily_insights.pdf"
+
+with open(file_path, "rb") as file:
+    reader = PyPDF2.PdfReader(file)
+
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=200,
+    chunk_overlap=0,
+    length_function=len,
+    is_separator_regex=False,
+)
+
+chunks = text_splitter.split_text(text)
+----
+
+<<image_recursive_text_splitting>> shows the resulting list of chunks and the character length of each chunk. Each chunk has a maximum length of 200 characters.
+
+[[image_recursive_text_splitting]]
+.Screenshot of recursive text splitting
+image::img/ch04_images/screenshot_recursive_text_splitting.png[Screenshot showing the output list of text chunks from recursive text splitting of a newsletter, with each chunk's content and character count maximum of 200, demonstrating successful preservation of meaningful text boundaries]
+
+[NOTE]
+====
+The default list of separators works well for most texts and languages. However, for languages like Chinese, Japanese, and Thai, which lack word boundaries, these separators might split words incorrectly. To avoid this, you can customize the list of separators. Best practices can be found in the https://python.langchain.com/v0.1/docs/modules/data_connection/document_transformers/recursive_text_splitter/[LangChain documentation].
+====
+
+==== Discussion
+
+Recursive chunking identifies natural text boundaries in priority order: paragraph breaks first, then single newlines, then punctuation, and finally spaces. When a chunk reaches its size limit, the splitter uses the highest-priority separator available.
+
+Why this works:
+
+* Preserves semantic coherence by respecting how humans structure text
+* Keeps related sentences within the same chunk
+* Reduces mid-sentence splits that damage meaning
+
+When to use recursive chunking:
+
+* Documents with clear paragraph structure (articles, reports, books)
+* General-purpose RAG systems processing mixed document types
+* As a default choice when document format is unknown
+
+When NOT to use:
+
+* Markup documents (Markdown, LaTeX, HTML) where document-aware splitting (<<chapter_document_aware_splitting>>) preserves heading structure better
+* Domain-specific content where semantic boundaries matter more than structural ones, requiring semantic chunking (<<chapter_semantical_chunking>>)
+
+<<image_recursive_chunking_process>> illustrates the risk with fixed-size chunking: when you split text every fixed number of tokens (for example, every 1,000 tokens), you can inadvertently combine content from different sections of a document. In a newspaper, for instance, politics, sports, and healthcare articles appearing on the same page might end up in the same chunk, mixing unrelated topics. Recursive chunking reduces this risk by respecting paragraph and section boundaries, keeping related information together.
+
+[[image_recursive_chunking_process]]
+.Each text chunk should represent one particular piece of information as clearly as possible.
+image::img/ch04_images/chunking-text-to-pieces-of-information.png[Illustration of a newsletter page with distinct sections for politics, sports, and healthcare showing how recursive chunking keeps each section's information together in separate chunks, preventing mixed topics that would confuse semantic retrieval, unlike fixed-size chunking]
+
+You can add overlaps so that the last sentence of one chunk also appears at the beginning of the next chunk. This helps the embedding model capture context that spans multiple chunks. However, overlaps increase storage costs and can cause redundant retrievals.
+
+[TIP]
+====
+Recursive character chunking is straightforward to implement from scratch using regular expressions to search for separators such as newlines and punctuation marks. For production use, consider implementing a simple version yourself to avoid adding orchestration framework dependencies to your project.
+====
+
+==== See Also
+
+* https://docs.langchain.com/oss/python/integrations/splitters/recursive_text_splitter[LangChain recursive text splitter documentation]
+
+[[chapter_document_aware_splitting]]
+=== Chunking Documents Using Document-Aware Splitting
+
+==== Problem
+
+You need to load markup documents and want to use the document-specific syntax to split them into chunks.
+
+==== Solution
+
+Markup formats such as Markdown use a specific syntax. For example, headings start with a hash (`#`), bullet lists often use an asterisk (`*`), and bold text is delimited by two asterisks (`**`). Document-aware splitters understand this syntax and use it to chunk the text.
+
+<<image_sample_code_examples>> shows example code snippets for different file formats.
+
+[[image_sample_code_examples]]
+.Sample code example for HTML, Python, Markdown, and LaTeX
+image::img/ch04_images/sample_code_examples.png[Display of sample code examples showing syntax from multiple file formats: HTML tags, Python function definitions, Markdown headers and emphasis, and LaTeX document structure, illustrating the markup-specific syntax that document-aware splitters can use to intelligently chunk files]
+
+This recipe uses LangChain TextSplitters to avoid defining syntax and splitting rules for each file format. Install the package:
+
+[source,console]
+----
+pip install langchain-text-splitters
+----
+
+The following code uses three different text splitters: one for Python code, one for LaTeX code, and one for Markdown files. The code checks the file extension and selects the appropriate splitter. In this example, it loads a Markdown file with the `.md` extension.
+
+[source, python, indent=0]
+----
+import os
+from langchain_text_splitters import (
+    PythonCodeTextSplitter,
+    LatexTextSplitter,
+    MarkdownHeaderTextSplitter,
+)
+
+file_path = "../datasets/markdown_files/random_md_code.md"
+file_extension = os.path.splitext(file_path)[1]
+
+with open(file_path, "r") as file:
+    file_text = file.read()
+
+if file_extension == ".py":
+    splitter = PythonCodeTextSplitter(chunk_size=500, chunk_overlap=50)
+elif file_extension == ".tex":
+    splitter = LatexTextSplitter(chunk_size=500, chunk_overlap=50)
+elif file_extension == ".md":
+    headers_to_split_on = [
+        ("#", "Header 1"),
+        ("##", "Header 2"),
+        ("###", "Header 3"),
+    ]
+
+    splitter = MarkdownHeaderTextSplitter(headers_to_split_on)
+
+chunks = splitter.split_text(file_text)
+----
+
+The output is a list of Python objects. Each object represents a text chunk and includes metadata such as `header_1`, `header_2`, and `header_3`, along with the page content. In other words, each chunk corresponds to a document section while preserving structural metadata such as the heading levels 1, 2, and 3.
+
+<<image_document_aware_splitting_markdown>> shows the resulting text chunks for the example document.
+
+[[image_document_aware_splitting_markdown]]
+.Screenshot of document-aware splitting for a Markdown file
+image::img/ch04_images/screenshot_document_aware_splitting_markdown.png[Screenshot showing output of Markdown document-aware splitting, displaying text chunks with preserved metadata fields indicating heading hierarchy levels, plus the page content of each chunk maintaining structural relationships]
+
+==== Discussion
+
+Document-aware splitting leverages format-specific syntax to identify logical boundaries. Markdown splitters recognize heading markers (`#`, `##`, `###`), Python splitters identify function and class definitions, HTML splitters respect tag structures, and LaTeX splitters understand section commands.
+
+Why this works:
+
+* Preserves the logical structure authors intended when writing
+* Keeps code functions, sections, or paragraphs intact
+* Captures hierarchical information (heading levels) as metadata
+* More accurate than generic text splitting for structured formats
+
+When to use document-aware splitting:
+
+* Source code repositories (Python, JavaScript, Java, etc.)
+* Markdown documentation and READMEs
+* HTML pages or web-scraped content
+* LaTeX papers and academic documents
+* Any content written in a markup language with formal syntax
+
+When NOT to use:
+
+* Plain text without markup (use recursive chunking instead)
+* PDF or Word documents extracted to plain text (no syntax to leverage)
+* Mixed-format documents where multiple splitters would be needed
+* Unstructured formats like chat logs or transcripts
+
+How document-aware differs from recursive chunking:
+
+* Recursive chunking looks for generic separators (newlines, punctuation) that work across all text
+* Document-aware splitting understands format-specific structure (HTML tags, Python function definitions, Markdown headers)
+* Document-aware preserves hierarchical metadata (e.g., which heading a chunk belongs to)
+
+Using a splitter that leverages the existing document structure is one of the most popular and efficient ways to chunk documents. It is fast, and by using headings, paragraphs, and punctuation, you keep content that belongs together in the same chunk.
+
+You can use regular expressions to search the text and build your own splitting rules, or you can use an existing text-splitting library such as LangChain's text splitters, which already include rules for formats like Markdown, Python, HTML, and LaTeX.
+
+To use the syntax of specific file types, your splitter must understand the format's syntax elements. In this recipe, LangChain text splitters are used because they save you from encoding each syntax element as a dedicated regular expression. For production solutions, consider avoiding LangChain if you want to minimize dependencies, and implement your own document-aware splitter using regular expressions.
+
+The key tradeoffs are that document-aware splitting requires format detection and format-specific parsers. This adds complexity but provides superior chunk quality for structured content compared to generic approaches.
+
+
+==== See Also
+
+* https://reference.langchain.com/v0.3/python/text_splitters/index.html[LangChain text splitters API reference]
+* https://developers.llamaindex.ai/python/framework/module_guides/loading/node_parsers/modules/[LlamaIndex node parsers documentation]
+
+[[chapter_semantical_chunking]]
+=== Splitting Text Using Semantic-Aware Chunkers
+
+==== Problem
+
+You want to chunk unstructured documents, such as audio transcriptions, chat logs, or concatenated text, using semantic topic boundaries rather than arbitrary character counts.
+
+==== Solution
+
+<<image_semantical_chunking_process>> shows the semantic chunking pipeline:
+
+. Break the text into small pieces, such as individual sentences.
+. Generate embeddings for each small text piece using an embedding model.
+. Measure the semantic similarity between consecutive pieces by calculating the distance between their embedding vectors.
+. If two consecutive pieces are very similar, merge them into a larger chunk. Continue adding sentences until the similarity to the next piece drops below a threshold.
+
+[[image_semantical_chunking_process]]
+.Define the breakpoint using semantic similarity
+image::img/ch04_images/define_breakpoint_using_similarity.png[Flowchart of the semantic chunking process showing: text broken into sentences, embeddings generated for each sentence, similarity distances calculated between consecutive embeddings, chunks merged when similar above threshold, separated when distance exceeds threshold using percentile-based breakpoint determination]
+
+The code in this recipe uses OpenAI text embedding models. To keep the recipe short, instead of implementing semantic chunking from scratch, it uses the https://api.python.langchain.com/en/latest/text_splitter/langchain_experimental.text_splitter.SemanticChunker.html[SemanticChunker] from the LangChain Experimental package.
+
+[source, bash]
+----
+pip install langchain-experimental langchain-openai
+----
+
+The following code snippet loads a text sample that lacks any structure (no headings, no paragraphs, no bullet points). The splitting threshold is set to the 90th percentile.
+
+[source, python, indent=0]
+----
+from langchain_experimental.text_splitter import SemanticChunker
+from langchain_openai.embeddings import OpenAIEmbeddings
+
+file_path = (
+    "../datasets/text_files/"
+    "random-text-about-5-different-stories.txt"
+)
+
+with open(file_path, "r") as file:
+    text = file.read()
+
+text_splitter = SemanticChunker(
+    OpenAIEmbeddings(),
+    breakpoint_threshold_type="percentile",
+    breakpoint_threshold_amount=90,
+)
+
+chunks = text_splitter.split_text(text)
+----
+
+
+<<image_semantic_chunker_example>> shows the chunks into which the sample document was split.
+
+[[image_semantic_chunker_example]]
+.Screenshot of the split text chunks using the semantic chunker
+image::img/ch04_images/screenshot_semantic_chunker.png[Screenshot displaying the output text chunks from semantic chunking of unstructured content about multiple stories, showing how the chunker identified meaningful topic boundaries by analyzing semantic similarity rather than document structure or fixed sizes]
+
+==== Discussion
+
+Semantic chunking analyzes content meaning to identify natural breakpoints, rather than relying on document structure or fixed character counts. It generates embedding vectors for small text pieces (typically sentences), then measures similarity between consecutive pieces. When similarity drops below a threshold, the system creates a new chunk.
+
+This recipe uses the percentile method to set breakpoints. The system calculates distances between all consecutive sentence pairs, then sets the threshold at the 90th percentile of those distances. The system creates a new chunk only when the similarity drop is larger than 90% of all observed drops in the document.
+
+Why this works:
+
+* Identifies topic shifts that don't align with structural boundaries
+* Groups semantically related content even when formatting is inconsistent
+* Creates chunks based on meaning rather than arbitrary rules
+
+When to use semantic chunking:
+
+* Unstructured text with no clear formatting (transcripts, concatenated emails, chat logs)
+* Documents where topic boundaries don't match paragraph breaks
+* When retrieval quality justifies higher preprocessing costs
+
+When NOT to use:
+
+* Documents with clear structure where document-aware or recursive splitting works well
+* Large corpora where embedding costs are too high
+* Real-time ingestion pipelines where embedding latency creates bottlenecks
+
+[NOTE]
+====
+Semantic chunking requires embedding each piece of text twice: once during the chunking process to identify boundaries, and again when ingesting chunks into the vector store. At $0.02 per 1M tokens (typical embedding model pricing), this adds measurable cost. Balance this against retrieval quality improvements for your use case.
+====
+
+[TIP]
+====
+For production systems, implement your own version using the LangChain source code as a reference rather than depending on the experimental package. This gives you better control over the implementation and avoids potential breaking changes in experimental APIs.
+====
+
+==== See Also
+
+* https://github.com/FullStackRetrieval-com/RetrievalTutorials/blob/main/tutorials/LevelsOfTextSplitting/5_Levels_Of_Text_Splitting.ipynb[5 levels of text splitting tutorial] by Greg Kamradt
+* https://developers.llamaindex.ai/python/examples/node_parsers/semantic_chunking/[LlamaIndex semantic chunker examples]
+* https://github.com/langchain-ai/langchain-experimental/blob/main/libs/experimental/langchain_experimental/text_splitter.py[LangChain SemanticChunker source code]
+
+[[chapter_agentic_chunking]]
+=== Splitting Text Using Agentic Chunkers
+
+==== Problem
+
+You are dealing with long, complex documents and want to bundle related information into meaningful text chunks.
+
+==== Solution
+
+Agentic chunking creates standalone statements called propositions, where each proposition describes one clear piece of information. Agentic chunking uses an LLM to analyze text and break it down into these propositions.
+
+<<image_agentic_chunking>> shows the agentic chunking workflow:
+
+. Split text into chunks.
+. Iterate over each chunk, send it to the LLM, and generate propositions.
+. Iterate over all propositions and compare them with one another. If they contain redundant information, merge them.
+
+[[image_agentic_chunking]]
+.How agentic chunkers work
+image::img/ch04_images/split_text_into_propositions.png[Process diagram showing agentic chunking workflow: original text divided into chunks, each chunk sent to LLM to generate standalone propositions, propositions analyzed for semantic similarity with redundant statements merged together, creating high-quality standalone information units]
+
+The prompt template used here comes from one of the first https://aclanthology.org/2024.emnlp-main.845/[papers] that described the concept of agentic chunking. You can find the full prompt in the https://smith.langchain.com/hub/wfh/proposal-indexing[LangChain Hub]. The prompt shown here is a shortened version to give you an idea of what it looks like:
+
+[source, plain, indent=0]
+----
+Decompose the "Content" into clear and simple propositions,
+ensuring they are interpretable out of context.
+
+1. Split compound sentence into simple sentences.
+    Maintain the original phrasing from the input whenever possible.
+2. For any named entity that is accompanied by additional
+    descriptive information, separate this information into its
+    own distinct proposition.
+3. Decontextualize the proposition by adding necessary modifier to
+    nouns or entire sentences and replacing pronouns (e.g., "it", "he"
+    "she", "they", "this", "that") with the full name of the entities
+    they refer to.
+4. Present the results as a list of strings, formatted in JSON.
+
+Example:
+
+Input: Title: Eostre. Section: Theories and interpretations,
+    Connection to Easter Hares. Content:
+The earliest evidence for the Easter Hare (Osterhase) [...]
+    America where it evolved into the
+Easter Bunny.
+Output: [ "The earliest evidence for the Easter Hare was recorded
+    in south-west Germany in 1678 by Georg Franck von
+    Franckenau.", "Georg Franck von Franckenau ..", "..."]
+----
+
+The prompt is sent to the LLM along with the text chunk to be processed. The only packages needed are the OpenAI SDK and Pydantic.
+
+[source, bash]
+----
+pip install langchain langchain-openai pydantic
+----
+
+The following code uses this prompt and creates propositions:
+
+[source, python, indent=0]
+----
+from langchain import hub
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
+from typing import List
+
+# pull the prompt template from the langchain hub
+obj = hub.pull("wfh/proposal-indexing")
+
+llm = ChatOpenAI(model="gpt-5.2")
+
+class Sentences(BaseModel):
+    sentences: List[str]
+
+extraction_llm = llm.with_structured_output(Sentences)
+
+# Create the sentence extraction chain
+extraction_chain = obj | extraction_llm
+
+propositions = extraction_chain.invoke(
+    """
+    On July 20, 1969, astronaut Neil Armstrong walked on the moon .
+    He was leading the NASA's Apollo 11 mission.
+    Armstrong famously said, "That's one small step for man, one
+    giant leap for mankind" as he stepped onto the lunar surface.
+    """
+)
+----
+
+<<image_agentic_chunking_propositions>> shows the propositions that the LLM derived from the text snippet in the code above. From the short text sample about the Apollo 11 mission, the model generates four standalone statements.
+
+[[image_agentic_chunking_propositions]]
+.How the generated propositions look like
+image::img/ch04_images/screenshot_agentic_chunking_propositions.png[Screenshot displaying four generated propositions from LLM-based agentic chunking of Apollo 11 mission text, showing standalone statements about Neil Armstrong, the NASA mission, the lunar landing date, and his famous quote, each capturing a distinct piece of information extractable from the original text]
+
+You can now either use these statements directly, or merge related propositions first.
+
+==== Discussion
+
+Agentic chunking uses LLMs to decompose text into standalone propositions—atomic statements that each convey one clear piece of information without relying on surrounding context. This produces the highest-quality chunks for retrieval but requires the most preprocessing work.
+
+*Why this works:*
+
+* Eliminates pronouns and implicit references that create ambiguity
+* Creates truly self-contained statements that can be understood in isolation
+* Resolves cross-references within documents during preprocessing
+* Merges redundant information into single, comprehensive statements
+
+*When to use agentic chunking:*
+
+* Legal contracts with extensive cross-references between clauses
+* Technical specifications that reference other sections or external standards
+* Documents where pronouns and implicit references make chunks ambiguous
+* Use cases where retrieval accuracy justifies high preprocessing costs
+
+*When NOT to use:*
+
+* Well-written documentation with clear, self-contained paragraphs
+* Large document corpora where LLM costs are too high
+* Real-time ingestion pipelines (LLM latency makes this impractical)
+
+*How agentic chunking differs from alternatives:*
+
+* All other chunking methods split existing text at boundaries
+* Agentic chunking transforms text into new standalone statements
+* Semantic chunking groups by topic; agentic chunking decontextualizes and atomizes
+* This is the only approach that actively resolves references and pronouns
+
+The following example illustrates the transformation. The original text chunk is:
+
+* Sarah bought a new book. She enjoys reading fantasy novels.
+
+From these two sentences, the LLM derives standalone propositions:
+
+* Sarah bought a new book.
+* Sarah enjoys reading fantasy novels.
+
+Note how "She" becomes "Sarah" in the second proposition, making it self-contained.
+
+To merge similar propositions, follow these steps:
+
+. Generate embeddings for all propositions.
+. Calculate semantic similarity between proposition pairs.
+. Merge highly similar propositions into a single statement.
+. Keep distinct propositions separate.
+
+For implementation, use a simple similarity threshold (e.g., cosine similarity > 0.9) to identify candidates for merging, then send them to an LLM to generate the final merged statement.
+
+Contracts are a typical use case. A 100-page contract with clauses referencing other sections or external documents creates challenges for basic RAG systems. Converting this content into standalone statements that don't rely on surrounding context significantly improves retrieval accuracy.
+
+[NOTE]
+====
+Agentic chunking requires 2-3 LLM calls per chunk (generation, optional merging). For a 500-chunk document, expect 30-60 minutes and $15-40 in API costs using GPT-4 class models. This is 10-20x more expensive than semantic chunking. Use only when retrieval quality critically matters.
+====
+
+[[see-also-agentic-chunkers]]
+==== See Also
+
+* https://github.com/FullStackRetrieval-com/RetrievalTutorials/blob/main/tutorials/LevelsOfTextSplitting/5_Levels_Of_Text_Splitting.ipynb[5 levels of text splitting tutorial] by Greg Kamradt
+* https://towardsdatascience.com/agentic-chunking-for-rags-091beccd94b1[Agentic chunking implementation guide] by Thuwarakesh Murallie
+
+
+

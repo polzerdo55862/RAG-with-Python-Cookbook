@@ -1,0 +1,1520 @@
+[[chapter_agentic_rag]]
+== Agentic RAG
+
+Agents are systems in which an LLM acts as a decision maker. The model observes the current situation, plans a sequence of actions, and selects tools to execute those actions. Like a human who adjusts travel plans when a train is canceled, an agent adapts its strategy as new information becomes available (<<image_humans_vs_agents>>).
+
+[[image_humans_vs_agents]]
+.Complex problem solving with agents mimics human behavior
+image::img/ch10_images/humans_vs_agents.png[alt="Side-by-side comparison: Human planning a multi-modal journey from location A to B with different transportation modes, versus an agentic system accessing web search, calculator, and weather tools to gather relevant information."]
+
+This way of thinking about problem solving did not emerge overnight. Early LLM applications were built as isolated features such as summarization or translation. Over time, these grew into multi-step workflows, and finally into fully agentic systems that can decide for themselves which tools to use.
+
+<<image_evolution_of_llm_applications>> shows the progression from single LLM features to orchestrated workflows to autonomous agents that freely select and combine tools.
+
+[[image_evolution_of_llm_applications]]
+.From Single LLM Features to autonomous agentic systems
+image::img/ch10_images/evolution_of_llm_applications.png[Three-stage evolution diagram: Single LLM Feature for summarization and translation, LLM Workflow with orchestrated multi-step defined sequence, and Autonomous Agent with free tool selection and continuous observation cycles]
+
+Once you view an agent as an autonomous problem solver, its internal structure becomes easier to reason about. At the core, an agent runs in a continuous loop. It performs an action, observes the result, and decides what to do next.
+
+<<image_agent_architecture>> shows the main components that make this possible. The agent uses an LLM to reason and plan, relies on tools to perform actions, and stores information in short- and long-term memory so that past results can influence future decisions.
+
+[[image_agent_architecture]]
+.A typical agent architecture consists of an LLM for decision-making, tools for actions, and memory for context
+image::img/ch10_images/the_agent_architecture.png[Agent architecture diagram showing: central Agent node connected to Memory for short and long-term storage, Tools and Tool Executor, and LLM Reasoning Model. Includes ReAct pattern with Reason-Act loop showing Observe-Plan-Act cycle]
+
+There is no single way to implement this loop. Several planning patterns exist, but the most widely used is ReAct. In this pattern, the agent alternates between reasoning about what to do next and acting by calling tools, using the results to refine its plan. The loop continues until the agent reaches a goal or hits a predefined limit, such as a maximum number of tool calls. ReAct was introduced in 2023 in the paper "ReAct: Synergizing Reasoning and Acting in Language Models." It combines explicit reasoning with tool use so that an agent can adapt its problem-solving strategy instead of following a fixed workflow.
+
+To see how this plays out in practice, the following example shows an agent working through a concrete problem.
+
+<<image_agentic_example_football_club>> shows how a complex question is decomposed into smaller, searchable sub-questions, information is retrieved from the web, and the results are combined to produce a final answer.
+
+[[image_agentic_example_football_club]]
+.An agentic system breaks down complex problems into manageable steps, gathers information, and performs calculations to reach a conclusion
+image::img/ch10_images/agentic_example_football_club.png[Workflow diagram for calculating maximum match capacity: decompose question into sub-questions about competitions, perform web searches, gather competition rules, and aggregate calculations from domestic league, Champions League, and qualifying rounds]
+
+This chapter builds on these ideas by introducing the tools and frameworks used to implement agentic RAG systems, from low-level function calling to higher-level runtimes that manage state, memory, and tool orchestration.
+
+You will find recipes for direct function calling, the OpenAI Agents SDK, LangGraph, and MCP, each representing a different point on the spectrum from lightweight orchestration to full agent runtimes. Beyond these, frameworks such as LlamaIndex, CrewAI, and AutoGen are also worth exploring when comparing different approaches to building agentic systems.
+
+Before exploring these frameworks, you need to understand the building blocks they orchestrate. Every agentic system relies on tools, which are discrete functions that perform specific actions. The first recipe shows how to design a custom tool from scratch.
+
+You can find all the code examples for this chapter in the https://github.com/polzerdo55862/RAG-with-Python-Cookbook[book's GitHub repository].
+
+=== Designing a Custom Tool in Python
+
+==== Problem
+
+You need to define your own custom tool for your agent toolkit.
+
+==== Solution
+
+Create a Python function with a detailed docstring that describes its purpose, inputs, and outputs. The docstring enables the LLM to understand when and how to use this tool.
+
+[source,python,indent=0]
+----
+import requests
+
+def get_weather(latitude, longitude):
+    '''
+    This function calls the open-meteo API to get the weather data for a
+    given latitude and longitude.
+
+    Args:
+        latitude (float): The latitude of the location to get weather
+            data for.
+        longitude (float): The longitude of the location to get
+            weather data for.
+
+    Returns:
+        dict: A dictionary containing the weather data for the given
+            latitude and longitude.
+    '''
+    response = requests.get(
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={latitude}"
+        f"&longitude={longitude}"
+        "&current=temperature_2m,wind_speed_10m"
+        "&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m"
+    )
+    data = response.json()
+    return data['current']['temperature_2m']
+----
+
+In your agentic system, the LLM decides when to call this tool based on the user's request. For example, if the user asks, "What is the weather like in New York tomorrow?" the LLM recognizes this tool can provide the answer, fills in the parameters, and calls the function. The function retrieves the weather data and returns it to the LLM for further processing.
+
+==== Discussion
+
+Tools are implemented using code that performs an action. In Python agents, tools are functions, API calls, database queries, or mathematical operations.
+
+Well-designed tools define their purpose, inputs, and outputs through docstrings. The LLM reads these docstrings to determine which tool fits the task and how to call it. This enables agents to chain tools in multi-step workflows without hardcoded logic.
+
+Use custom tools for domain-specific functionality—internal databases, proprietary APIs, or business calculations. Keep each tool focused on a single responsibility. Avoid creating tools for tasks that prebuilt solutions already handle, like web search or code execution.
+
+Note that each tool requires testing, debugging, and updates as APIs change. Tools that call external services need error handling for timeouts, rate limits, and failures.
+
+==== See Also
+
+* https://openai.github.io/openai-agents-python/tools/[OpenAI Agents SDK tool creation guide] provides tutorial on converting Python functions into agent tools
+* https://platform.openai.com/docs/guides/function-calling[OpenAI Function Calling guide] contains official documentation on designing and implementing tools for LLM function calling
+* https://docs.anthropic.com/en/docs/build-with-claude/tool-use[Anthropic Tool Use documentation] offers comprehensive patterns for tool definition and implementation with Claude models
+
+=== Using Workflow Patterns in Multi-Agent Systems
+
+==== Problem
+
+You want to optimize the performance and latency of your agentic system by using the right workflow patterns for your tools and sub-agents.
+
+==== Solution
+
+This recipe describes five common workflow patterns defined by Anthropic. Use it as a reference to choose which pattern fits your use case. For concrete implementations, see the recipes later in this chapter, particularly <<asyncio_recipe>> for parallel tasks and <<langgraph_recipe>> for orchestrator-workers patterns.
+
+The key difference is that some patterns rely heavily on concurrency (tasks run in parallel), while others focus on sequential steps, where each step is grounded in the output of the previous step. Which approach you need depends on your specific use case: sometimes you need a sequential workflow, and sometimes you can run parts in parallel.
+
+*Workflow Pattern 1: Prompt Chaining*
+
+In prompt chaining, the workflow breaks down a complex task into sequential steps, where each LLM call processes the previous step's output.
+
+<<image_prompt_chaining_workflow>>shows a workflow that extracts text from a PDF and converts it into simple English. The workflow splits subtasks (extraction, translation, reformulation) into separate LLM calls. Because each call depends on the previous output, this workflow must be sequential.
+
+[[image_prompt_chaining_workflow]]
+.Prompt chaining workflow. The prompt chaining workflow links prompts sequentially to build context.
+image::img/ch10_images/prompt_chaining_pattern.png[Linear workflow diagram: Extract Text from PDF followed by Translate to Simple English followed by Reformat for Clarity. Three sequential LLM calls with text flowing left-to-right through each stage]
+
+*Workflow Pattern 2: Routing*
+
+In a routing workflow, an initial LLM call acts as a router that analyzes the request and selects the most appropriate tool or sub-workflow.
+
+<<image_routing_workflow_pattern>> shows a router that receives an email and generates a response. If the email includes attachments, the router triggers processing steps to analyze, preprocess, and save the content. If it is a simple email, the router answers directly using information from your calendar or vector store. With roughly 5 to 10 scenarios, you can cover most actions required to handle email.
+
+[[image_routing_workflow_pattern]]
+.In a routing workflow, the LLM decides which path to take based on the input.
+image::img/ch10_images/routing_workflow_pattern.png[Decision tree diagram: Email Input sent to LLM Router branches to either Attachment Processing path with analyze, preprocess, and save steps or Simple Response path querying calendar and vector store. Router determines optimal process]
+
+*Workflow Pattern 3: Parallel Tasks*
+
+You run multiple LLM calls or tool calls in parallel, each handling a different part of the task independently. At the end, an aggregator collects and combines the results.
+
+<<image_parallel_tasks_workflow>> shows an agent analyzing a long scanned contract. The system must extract text and analyze it page by page. To speed up processing, send one page at a time to a multimodal model to extract specific values like expiry date and cancellation terms.
+
+Sequential processing takes 10 to 20 seconds per page even with an efficient model. Running 10 or 20 LLM calls in parallel reduces processing time from hours to minutes.
+
+The main limit is the token-per-minute limit of your API endpoint. Running too many tasks concurrently may hit the token limit and cause errors.
+
+[[image_parallel_tasks_workflow]]
+.In the parallel task workflow, multiple concurrent LLM calls analyze different pages of the contract in parallel.
+image::img/ch10_images/parallel_tasks_workflow.png[Parallel processing diagram: Scanned multi-page contract split into individual pages sent in parallel to multimodal LLM for entity extraction with results aggregated by merger component. Shows 10-20 concurrent LLM calls]
+
+[TIP]
+====
+<<asyncio_recipe>> uses this exact concept to parallelize reading and analyzing documents. Each LLM call reads and analyzes one page, and an aggregator merges the results.
+====
+
+*Workflow Pattern 4: Orchestrator-Workers*
+
+The orchestrator-workers workflow uses an agent that acts as a coordinator. The orchestrator has access to multiple worker agents, each specialized in a particular task or domain.
+
+<<image_orchestrator_workflow_pattern>> shows an orchestrator with access to three worker agents:
+
+* A worker that queries a SQL database by translating the user's request into an appropriate SQL query and executing it
+* A worker that searches wiki data (for example, via a vector database and semantic search)
+* A worker that performs a direct LLM call using a specialized prompt
+
+Depending on the user's question, the orchestrator can invoke one or more workers. A synthesizer then considers all gathered content and generates a single final response for the user.
+
+[[image_orchestrator_workflow_pattern]]
+.In an orchestrator workflow pattern, the orchestrator decides which specialized workers to call.
+image::img/ch10_images/orchestrator_workflow_pattern.png[Hub-and-spoke architecture: central Orchestrator Agent branches to three specialized Worker Agents including SQL Database Query Worker, Wiki and Vector DB Search Worker, and Direct LLM Call Worker. Synthesizer component merges all outputs into final response]
+
+*Workflow Pattern 5: Evaluator-Optimizer*
+
+One LLM creates an initial draft and another LLM reviews it. The system iterates between drafting and evaluation until the evaluator is satisfied or reaches a maximum number of iterations.
+
+<<image_evaluator_optimizer_workflow>> shows an agent system for writing a technical blog post. One LLM produces draft paragraphs, while the evaluator provides feedback. The cycle continues until the evaluator approves the result.
+
+[[image_evaluator_optimizer_workflow]]
+.In the evaluator-optimizer workflow, output is iteratively refined through evaluation and optimization cycles.
+image::img/ch10_images/evaluator_optimizer_workflow.png[Feedback loop diagram: Drafting LLM produces content reviewed by Evaluator LLM providing feedback fed back to Drafting LLM with cycle repeating until evaluator approval or max iterations reached]
+
+==== Discussion
+
+Sequential patterns work when tasks happen in order—each step processes the previous output. Use this when data flows linearly, like analyzing then summarizing a document.
+
+Parallel patterns run independent tasks concurrently. Use this when subtasks don't depend on each other, like querying multiple databases at the same time.
+
+Routing patterns classify input and choose execution paths accordingly. Use this when you have distinct task types, like routing customer queries to sales, support, or billing.
+
+Orchestrator patterns coordinate specialized sub-agents. Use this when tasks require diverse expertise. One orchestrator delegates to domain-specific agents.
+
+Choose workflow patterns when reliability matters more than flexibility. Alternatively you can choose autonomous agents when tasks require adaptive decision-making. In the second case, the agent decides which tools to use at runtime rather than following a fixed workflow.
+
+Avoid over-engineering. Parallel patterns add orchestration overhead that only pays off for long-running subtasks. Routing patterns require clear categories—avoid when classification is ambiguous. Orchestrator patterns increase latency through multiple LLM calls.
+
+==== See Also
+
+* https://www.anthropic.com/research/building-effective-agents[Anthropic's guide to building effective agents] provides an overview of workflow patterns and agent design principles
+* https://platform.claude.com/cookbook/[Claude cookbook on agent workflow patterns] includes code examples for basic multi-LLM workflows
+
+[[framework_selection_recipe]]
+=== Choosing an Agentic Framework
+
+==== Problem
+You're building your first agentic AI applications and looking for the optimal setup for your team and use cases.
+
+==== Solution
+
+<<framework_abstraction_levels>> shows a simple way to group frameworks and platforms to build agents by abstraction level.
+
+[[framework_abstraction_levels]]
+.Framework Abstraction Levels: Control vs. Convenience
+image::img/ch10_images/abstraction_flexibility_diagram.png[Framework spectrum diagram on control vs. convenience axis: Level 1 No-code tools like Microsoft Copilot Studio, Level 2 Agentic Frameworks like OpenAI Agents SDK and LangGraph, Level 3 From-scratch with direct APIs. Arrow shows inverse relationship]
+
+<<table_abstraction_levels>> summarizes the three abstraction levels, example tools and frameworks, what defines each level, and notes on when to use each level.
+
+[[table_abstraction_levels]]
+.Abstraction levels for agentic tooling
+[cols="1,2,3,4",options="header"]
+|===
+| Level | Example tools/frameworks | What defines the level | Notes (when to use)
+
+| 1. No-code (extremely high abstraction)
+| Microsoft Copilot Studio; n8n; Zapier; Make
+| Drag-and-drop workflow builders with prebuilt connectors and minimal coding.
+| Good for internal workflows with two to five steps and for teams without engineering resources. Helps you start quickly. If your company already uses Microsoft, Copilot Studio can fit well into that ecosystem. Pricing is typically subscription-based rather than per-token.
+
+| 2. Agentic frameworks (code-first)
+| OpenAI Agents SDK; LangGraph
+| Libraries that provide agent primitives (tools, memory/persistence, and tracing) and patterns for building agentic applications.
+| Use when you want faster development than from-scratch builds while still keeping code-level control. Lightweight options (for example, OpenAI Agents SDK) minimize lock-in, making it easier to switch frameworks later or move to a from-scratch approach.
+
+| 3. From scratch (maximum control)
+| Direct model APIs; your own orchestration
+| You directly call LLM provider endpoints and implement your own orchestration, tools, state, memory, and observability.
+| Use when you need maximum flexibility or robustness and have the engineering expertise to own the full stack (including logging, tracing, and guardrails).
+|===
+
+For the following sections, the focus is on code-first frameworks and from-scratch approaches, so it ignores no-code tools. <<table_choosing_framework>> summarizes scenarios and recommendations for choosing between lightweight frameworks, high-abstraction frameworks, or building from scratch. Use it as a reference.
+
+[[table_choosing_framework]]
+.Choosing an agentic framework: scenarios and recommendations
+[cols="3,1,1,1,4",options="header"]
+|===
+| Scenario | From scratch | Lightweight framework | High-abstraction framework | Notes
+
+| You need to set up an agentic RAG app in weeks and bring it to production.
+|
+|
+| ✓
+| LangGraph has many built-in features that help you quickly build and ship a solution. Building from scratch can take longer but may be more robust.
+
+| You have many developers maintaining your app with low-to-mid experience.
+|
+| ✓
+| ✓
+| Build from scratch only if the team is highly experienced and it's clear what the agent should look like. Otherwise, a framework provides a standardized approach and makes it easier for junior developers to follow established patterns than to write high-quality infrastructure from scratch.
+
+| You're building a solution that serves thousands to millions of users and you need robustness and scalability.
+| ✓
+| ✓
+|
+| From-scratch implementations or lightweight frameworks reduce dependencies. Fewer dependencies typically mean less maintenance effort and fewer components that can break.
+
+| You need a highly flexible and customizable agent tailored to one particular need.
+| ✓
+| ✓
+|
+| Building from scratch gives you full control over how tools are defined and how and when they interact. You can also freely design the application flow and state management for your specific use case.
+
+| You need real-time debugging, observability, transparency, and audit/compliance logs.
+| ✓
+| ✓
+| ✓
+| OpenAI Agents SDK includes a tracing view on the OpenAI website that lets you follow each step of the agent. LangGraph provides similar capabilities via LangSmith. If you build from scratch, you typically need to implement logging and tracing yourself.
+|===
+
+This recipe does not recommend specific frameworks. Instead, it provides criteria to evaluate options based on your team and use case.
+
+==== Discussion
+
+Framework abstraction level determines control versus complexity. At the lowest level, you call LLM APIs directly and implement tools as Python functions. This maximizes transparency and debugging. Use this when you need auditable behavior and your team has strong Python expertise.
+
+Mid-level frameworks like OpenAI Agents SDK provide structure without heavy abstraction. They enforce tool patterns and handle orchestration while remaining inspectable. Use these when you want established patterns without extensive dependencies.
+
+High-level frameworks like LangGraph manage state through graph structures. They bundle observability, type safety, and coordination primitives. Use these for complex multi-agent systems where you need built-in debugging tools.
+
+No-code tools like Microsoft Copilot Studio use visual interfaces. Use these when time-to-market trumps customization and your team lacks Python expertise. You trade control for speed.
+
+Avoid heavy frameworks early. Start with direct API calls or lightweight frameworks to understand requirements. Each abstraction layer obscures behavior and makes debugging harder. Each dependency expands your security attack surface.
+
+Framework lock-in compounds over time. LangGraph's state management enforces a structure that's hard to migrate from. OpenAI Agents SDK minimizes lock-in through simpler abstractions.
+
+==== See Also
+
+* https://www.anthropic.com/research/building-effective-agents[Anthropic's guide to building effective agents] provides recommendations for implementing agents with direct LLM API calls
+* https://openai.github.io/openai-agents-python/[OpenAI Agents SDK documentation] offers reference for lightweight agent framework with minimal dependencies
+* https://docs.langchain.com/oss/python/integrations/langgraph[LangGraph documentation] includes guide to building stateful multi-agent workflows with built-in observability
+
+[[function_calling_recipe]]
+=== Building an Agentic System Using Function Calling
+
+==== Problem
+
+You want to build an agentic system without using any framework.
+
+==== Solution
+
+Use the function-calling approach. Define each tool the agent can use as a Python function, and provide the LLM with a dictionary that contains the key information about those functions so it can decide what makes sense for the task at hand.
+
+In this setup, the LLM acts as the planner and plans a sequence of tool calls based on the user's query. The Python runtime then executes those tool calls step by step. <<image_not_the_llm_calls_the_tool>> shows how it works: the LLM only decides, the code executes. The practical example in this recipe implements an agent that uses Python functions to solve math problems. The agent breaks down a math task like `15 + 23 * 4` into a series of smaller steps and decides which mathematical function to apply at each point.
+
+[[image_not_the_llm_calls_the_tool]]
+.The LLM decides which tool to call; Python executes it
+image::img/ch08_images/not_the_llm_calls_the_tool.png[alt="Process flow diagram: LLM receives user query, analyzes available tools, decides which tool to call and with what parameters passed to Python Runtime which executes tool and returns result to LLM. Emphasizes decision vs. execution separation."]
+
+This recipe uses one of OpenAI's LLMs to decide which functions to call and in what sequence. Later, the system will also have access to a weather API so it can handle not only mathematical operations but also queries like "What is the current weather?"
+
+In the first step, define the mathematical functions needed. The following snippet shows the definition of `add_numbers`, which allows the agent to add two numbers. The docstring describes the function's behavior, input arguments, return value, data types, and includes an example.
+
+The implementation is only a single line (`a + b`), but the docstring is the important part: it describes the function's behavior, the input arguments, return value, and data types, and includes an example. This docstring becomes the foundation the LLM uses to decide which tool to use later.
+
+[source,python,indent=0]
+----
+def add_numbers(a, b):
+    """
+    Tool for adding two numbers together.
+
+    This tool takes two numbers as input and returns their sum. It can be
+    used for:
+    - Basic addition operations
+    - Combining numeric values
+    - First step in more complex calculations
+
+    Args:
+        a (float): The first number to add
+        b (float): The second number to add
+
+    Returns:
+        float: The sum of the two input numbers (a + b)
+
+    Example:
+        add_numbers(5.0, 3.0) -> 8.0
+        add_numbers(-1.0, 1.0) -> 0.0
+    """
+    return a + b
+----
+
+In addition, the recipe defines math functions for subtraction, multiplication, and division. They follow the same pattern and are omitted here for brevity. You can find all functions in the https://github.com/polzerdo55862/RAG-with-Python-Cookbook/tree/main[Jupyter Notebook] for this recipe.
+
+With the mathematical functions and the weather tool (shown earlier in "Designing a Custom Tool in Python"), the system has a set of tools to solve requests.
+
+To make sure the LLM understands which functions it can use, you must package the function information into a dictionary. This dictionary contains:
+
+- the function name
+- a detailed description
+- the input parameters (and their schema)
+
+A convenient way to populate the description field is to reuse the function's docstring. <<image_how_to_get_the_docstring>> shows how to access the docstring from a function by reading its `__doc__` attribute.
+
+[[image_how_to_get_the_docstring]]
+.How to get the docstring of a function
+image::img/ch10_images/how_to_get_the_docstring_of_a_function.png[Code screenshot: Python function accessing docstring via function name attribute. Shows docstring extraction method used to populate LLM tool descriptions for function calling]
+
+The following code shows how to define the tools dictionary required for function calling. This example shows only the first entry for `add_numbers`.
+
+[source,python,indent=0]
+----
+tools = [
+  {
+    "type": "function",
+    "function": {
+      "name": "add_numbers",
+      "description": add_numbers.__doc__,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "type": "number",
+            "description": "The first number to add"
+          },
+          "b": {
+            "type": "number",
+            "description": "The second number to add"
+          }
+        },
+        "required": ["a", "b"]
+      }
+    }
+  },
+  ...
+]
+----
+
+Next, use the tools dictionary together with the LLM to plan which tools should be used to answer the user's question.
+
+The following code snippet calls OpenAI's endpoint, includes the user's query in the `messages`, and passes the tools dictionary via the `tools` parameter. This gives the LLM the information it needs to select the best tool to call. The response contains a list of tool calls.
+
+The final part of the code iterates over the tool calls, finds the corresponding function, loads the arguments specified by the LLM, and then calls the tool by resolving the real Python object.
+
+[source,python,indent=0]
+----
+import openai
+import json
+
+user_query = "What is the result of (5.0 + 3.0) * 2.0?"
+messages = [{"role": "user", "content": user_query}]
+
+# Call the LLM with the available tools
+response = openai.chat.completions.create(
+    model="gpt-5-mini", messages=messages, tools=tools
+)
+
+# --- Extraction and Execution Logic ---
+message = response.choices[0].message
+tool_calls = message.tool_calls
+finish_reason = response.choices[0].finish_reason
+
+for tool_call in tool_calls:
+    tool_name = tool_call.function.name
+    # 1. Extract and parse arguments
+    arguments = json.loads(tool_call.function.arguments)
+
+    # 2. Locate the function object
+    tool = globals().get(tool_name)
+
+    # 3. Execute the function and capture the result
+    result = tool(**arguments) if tool else {}
+----
+
+When you run this snippet, you'll see that it executes only a single tool call, which is the first addition step inside the parentheses. It does not solve the entire question yet, but it is a correct first step. <<image_function_calls_example_simple_math>> shows the content of the LLM response with the tool that was selected and the values for the input parameters.
+
+[[image_function_calls_example_simple_math]]
+.Function Calling for math problems: Only the first set of parentheses is resolved by the LLM
+image::img/ch08_images/function_calling_only_parantheses.png[Function call response JSON: Tool selection shows LLM chose addition function with parameters solving only first step of expression. Demonstrates need for iterative loop]
+
+To solve the entire problem, the process must run in a loop. After executing the first function, the LLM must decide how the process should continue.
+
+The following code encapsulates the execution of the selected function into a helper function that can be called repeatedly. That helper is then used in a while loop that continuously calls the LLM, receives tool calls if any, executes the tool, appends the tool result to the messages, and repeats until the model returns a final answer.
+
+[source,python,indent=0]
+----
+def process_function_invocations(invocations):
+    """Processes LLM tool requests and executes the functions."""
+    results = []
+    for invocation in invocations:
+        function_name = invocation.function.name
+        function_args = json.loads(invocation.function.arguments)
+
+        # Get and execute the function
+        function = globals().get(function_name)
+        # Execute the function with unpacked arguments
+        function_result = function(**function_args) if function else {}
+
+        # Format the result to be sent back to the LLM
+        results.append({
+            "role": "tool",
+            "content": json.dumps(function_result), # Must be a string
+            "tool_call_id": invocation.id,
+        })
+    return results
+
+user_query = "What is the result of (6.7 + 3.3) * 2.0?"
+messages = [{"role": "user", "content": user_query}]
+finish_reason = "tool_calls" # Initialize to enter the loop
+
+while finish_reason == "tool_calls":
+    # Call the LLM with the conversation history and tools
+    response = openai.chat.completions.create(
+        model="gpt-5-mini",
+        messages=messages,
+        tools=tools
+    )
+
+    # Extract response details
+    message = response.choices[0].message
+    tool_calls = message.tool_calls
+    finish_reason = response.choices[0].finish_reason
+
+    # Add the LLM's response (tool request or final answer) to history
+    messages.append(message)
+
+    if finish_reason == "tool_calls":
+        # Execute the tool and format the results for feedback
+        tool_results = process_function_invocations(tool_calls)
+        # Add the tool results to the history
+        messages.extend(tool_results)
+----
+
+<<image_iterative_function_calling>> shows the message list after the loop completes. It contains three entries: the user's question, the first tool call, and the second tool call.
+
+[[image_iterative_function_calling]]
+.An example of iterative function calls for a simple math problem
+image::img/ch08_images/iterative_function_calling.png[Message history list after iterative function calls: user query about math expression, LLM response with first tool call, tool result, LLM response with second tool call. Shows conversation accumulation]
+
+Now, let's test the same approach with a question that also requires weather information. The sample query tells the agent that the user will be in London in a few days, and asks the system to retrieve the weather and calculate the number of days until the return.
+
+[source,python,indent=0]
+----
+user_query = (
+    "I'm planning a trip to London. "
+    "I'll arrive in 5 days and stay for 6 days. "
+    "Can you tell me what the current weather is in London, "
+    "and also calculate in how many days I will return home from today?"
+)
+
+messages = [{"role": "user", "content": user_query}]
+
+finish_reason = "tool_calls"  # Initialize finish_reason
+
+while finish_reason == "tool_calls":
+    print("messages:", messages)
+    response = openai.chat.completions.create(
+        model="gpt-5-mini",
+        messages=messages,
+        tools=tools
+    )
+
+    finish_reason = response.choices[0].finish_reason
+
+    if finish_reason == "tool_calls":
+        message = response.choices[0].message
+        tool_calls = message.tool_calls
+        results = process_function_invocations(tool_calls)
+
+        messages.append(message)
+        messages.extend(results)
+
+final_content = response.choices[0].message.content
+print("Final content:", final_content)
+----
+
+The sample query is executed using the same flow. If you print the outcome, you will see that the first tool call retrieves the current weather in London, and the next call calculates the number of days until the return.
+
+
+==== Discussion
+
+LLMs are unreliable at arithmetic, so tool calling delegates calculations to Python functions that perform them accurately. The docstring acts as the contract between model and tool, describing what the function does and how to call it.
+
+Function calling enables step-by-step agent workflows. The model decides which tool to use, runs it, and reasons over the result. Because each call is explicit, it is easy to inspect, log, and debug.
+
+Use function calling when a task requires external data or computation. For simple one-shot questions, a single LLM call is simpler and faster.
+
+The main tradeoff is latency: each tool call adds another model round trip. In performance-sensitive systems, reduce this with batching or asynchronous execution, as shown in <<asyncio_recipe>>.
+
+==== See Also
+
+* https://platform.openai.com/docs/guides/function-calling[OpenAI function calling guide] — Detailed documentation on implementing function calling
+* https://github.com/ed-donner/agents[Agentic AI code examples on GitHub] — Sample implementations for building custom agents
+
+[[asyncio_recipe]]
+=== Accelerating Agents Using AsyncIO
+
+==== Problem
+
+You want to speed up independent agent tasks that are limited by I/O wait time, not by sequential dependencies.
+
+==== Solution
+
+Use Python's `asyncio` module to run I/O-bound tasks concurrently. Add `async` to the function definition to turn it into a coroutine, then use `await asyncio.gather()` to run multiple coroutines concurrently.
+
+The following code shows how to use `asyncio` to run functions concurrently. The example defines two coroutines that simulate API calls by sleeping for different durations.
+
+[source,python]
+----
+import asyncio
+import time
+
+async def fetch_data():
+    await asyncio.sleep(2)  # Simulating an API call that takes 2 seconds
+    return {"status": "success", "data": "Some data from API"}
+
+async def process_data():
+    # Simulating data processing that takes 1 second
+    await asyncio.sleep(1)
+    return {"status": "complete", "result": "Processed data"}
+
+async def main():
+    start_time = time.time()
+    # Run both coroutines concurrently;
+    # total time ≈ longest single task (2s)
+    data, result = await asyncio.gather(fetch_data(), process_data())
+    end_time = time.time()
+
+    print(f"Total time: {end_time - start_time:.2f} seconds")
+
+asyncio.run(main())
+----
+
+<<image_asyncio_calculation_time>> shows the timing results. With `asyncio`, total runtime is roughly the duration of the longest task. The overall time drops from about three seconds to about two seconds.
+
+[[image_asyncio_calculation_time]]
+.Using asyncio to run tasks concurrently
+image::img/ch08_images/asyncio_calculation_time.png[Execution time bar chart: Sequential execution of fetch data and process data equals over 3 seconds vs. Concurrent asyncio execution with overlapped timing equals approximately 2 seconds. Shows time savings from parallelization]
+
+For a practical example, consider an agentic chatbot that analyzes uploaded PDFs. A contract might be a scanned PDF with hundreds of pages. The first step is to digitize the content and scan for specific values. A scanned PDF is essentially a long document of images. Each page can be converted to an image and processed by a multimodal model to extract text. This approach is powerful but time-consuming. The following implementation parallelizes processing across individual pages.
+
+<<image_asyncio_entity_extraction_workflow>> shows the process to extract content from all pages by running tasks concurrently:
+
+. The controller agent sends each page to a multimodal model to extract text.
+. Each multimodal-model call runs concurrently and extracts text from one page at a time.
+. The merger agent collects and combines the results from the individual pages into a cohesive output.
+
+[[image_asyncio_entity_extraction_workflow]]
+.Entity extraction workflow with asyncio
+image::img/ch08_images/asynchronous_python_for_entity_extraction.png[Concurrent PDF processing workflow: Controller Agent sends multi-page PDF with individual pages distributed to concurrent Multimodal Model calls extracting text and entities in parallel, Merger Agent collects and combines results into cohesive output]
+
+The following code defines the coroutine that does the actual heavy lifting by extracting entities from a single image. For the extraction, a multimodal model is used.
+
+[source,python,indent=0]
+----
+async def extract_entities_from_image(image, page_num):
+    start_time = time.time()
+
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    image_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    client = openai.AsyncOpenAI()
+    response = await client.chat.completions.create(
+        model="gpt-5.2",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Extract entities as JSON."},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{image_base64}"
+                        },
+                    },
+                ],
+            }
+        ],
+        max_tokens=1000,
+    )
+
+    # Write response to individual JSON file
+    filename = f"./datasets/page_{page_num}_entities.json"
+    with open(filename, "w") as f:
+        f.write(response.choices[0].message.content)
+
+    end_time = time.time()
+
+    return response.choices[0].message.content
+----
+
+The next step loads the PDF, converts each page to an image, and extracts text from the first three pages concurrently. You can choose how many pages to process in parallel. The limiting factor is usually the API rate limit.
+
+Model providers typically document how to estimate token usage for images at a given resolution. With that information and processing time per image, you can estimate how many images to process concurrently without exceeding rate limits.
+
+[source,python,indent=0]
+----
+async def main():
+    # Convert PDF to images
+    images = convert_from_path(
+        "./datasets/Laptop_Order_Invoice.pdf", dpi=200
+    )
+
+    # process only first 3 pages for demo purposes
+    end_page_to_process = 3
+    results = await asyncio.gather(
+        *[
+            extract_entities_from_image(img, i + 1)
+            for i, img in enumerate(images[:end_page_to_process])
+        ]
+    )
+
+    # merge the results to one JSON,
+    # they are all from the same list of entities
+    client = openai.AsyncOpenAI()
+    response = await client.chat.completions.create(
+        model="gpt-5.2",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Merge these JSON lists into one."
+                        + "They are all from the same invoice.",
+                    },
+                    {
+                        "type": "text",
+                        "text": "\n".join(results),
+                    },
+                ],
+            }
+        ],
+    )
+
+    merged_json = response.choices[0].message.content
+    return merged_json
+----
+
+<<image_extracted_data_as_json>> shows the resulting dictionary. The code stores extracted values as a JSON file for each image and merges the results into a single dictionary.
+
+[[image_extracted_data_as_json]]
+.Extracted entities saved as JSON
+image::img/ch08_images/extracted_data_as_json.png[JSON output structure: Individual page dictionaries containing extracted entities merged into single consolidated JSON object combining all results]
+
+To verify that `asyncio` improves performance, log execution times. In this example, page 1 took 19 seconds, page 2 took 34 seconds, and page 3 took 38 seconds. The entire script took 49 seconds total. Without `asyncio`, sequential processing would have taken at least 90 seconds.
+
+==== Discussion
+
+Agent systems make multiple API calls to LLMs, embedding models, and vision models. Each call takes seconds. Python's asyncio suspends tasks during I/O waits and switches to other ready tasks. Sequential execution takes the sum of all durations. With asyncio, total time is roughly the longest task duration.
+
+Use async when your agent queries multiple independent data sources, calls several tools in parallel, or generates embeddings for multiple chunks simultaneously. Fetching three data sources concurrently takes as long as the slowest call, not the sum of all three.
+
+Avoid async for sequential workflows where each step depends on the previous result. Also avoid it for simple scripts with few API calls where overhead adds complexity without meaningful gains.
+
+The tradeoff is code complexity. Async requires understanding coroutines, event loops, and await semantics. Debugging is harder because errors can occur in multiple tasks running at the same time, making it difficult to trace which task caused the problem. Error handling must account for partial failures.
+
+Use async for user-facing agents where response time matters. Waiting for multiple API calls to finish sequentially frustrates users. Async reduces wait time by running independent tasks concurrently.
+
+
+==== See Also
+
+* https://docs.python.org/3/library/asyncio.html[Python asyncio documentation] for official reference on asynchronous I/O, event loops, and coroutines
+* https://realpython.com/async-io-python/[Real Python's asyncio tutorial] provides hands-on guide to Python's asyncio for concurrent programming
+
+[[recipe_agents_sdk]]
+=== Building a Sales Negotiation Agent with OpenAI's Agents SDK and ChromaDB
+
+==== Problem
+
+You want to build a sales assistant agent using a lightweight agent framework, so you don't need to build everything from scratch but still have full flexibility.
+
+==== Solution
+
+OpenAI's Agents SDK is a lightweight framework for building agents. It covers the most important concepts, such as how to define guardrails, how agents can hand off tasks to each other, and how to trace an agent's behavior step by step.
+
+This recipe builds a sales assistant agent that negotiates on your behalf. Later in the recipe, a customer agent and a moderator agent are added. The moderator alternately triggers the customer and salesman agents. The salesman agent has access to a vector store containing information about previous chats with the customer, pricing, and manufacturing costs.
+
+<<image_openai_agent_sdk_example>> shows the full setup with all three agents and how they interact with each other.
+
+[[image_openai_agent_sdk_example]]
+.Agentic workflow chart for the agent to build
+image::img/ch10_images/salesman_agent_graph.png[Multi-agent architecture diagram: Moderator Agent orchestrates negotiation between Negotiation Agent with query database tool for email history and pricing and Customer Agent. Shows bi-directional communication and tool access]
+
+To run the code in this recipe, install the OpenAI Agents SDK library. The agent uses a ChromaDB vector database to store pricing and historical sales information as long-term memory.
+
+[source,python]
+----
+pip install openai-agents chromadb
+----
+
+To run the pdf2image library, you need additional system utilities. On Linux, most distributions include the Poppler utilities. If not, install them with your package manager:
+
+[source,bash]
+----
+sudo apt-get install poppler-utils
+----
+
+On Windows, you can download the Poppler binaries from the official Poppler repository and add them to your system PATH so the PDF-to-image library can find them.
+
+The first step is to set up the vector database that will serve as the sales agent's long-term memory.
+
+This recipe uses a ChromaDB vector database and populates it with sample emails from an email chain between a salesperson and a potential buyer. The email history also includes business information such as retail prices, common manufacturing costs, and product details. This gives the sales agent additional context and more room for negotiation.
+
+The following code creates a ChromaDB vector database and a collection called `email_history`. It populates the collection by loading an email history text file, splitting it into chunks, embedding those chunks, and uploading them to the vector database.
+
+[source,python,indent=0]
+----
+import os
+import shutil
+import chromadb
+from chromadb.config import Settings
+
+def fill_chroma_db():
+    chroma_dir = "./chroma_email_history_db"
+    # If the directory exists, remove it to overwrite
+    if os.path.exists(chroma_dir):
+        shutil.rmtree(chroma_dir)
+    client = chromadb.Client(Settings(persist_directory=chroma_dir))
+    collection = client.get_or_create_collection("email_history")
+
+    with open(
+        "./sample_data/sample_email_history.txt", "r", encoding="utf-8"
+    ) as f:
+        email_text = f.read()
+
+    email_docs = [
+        e.strip() for e in email_text.split("\n---\n") if e.strip()
+    ]
+
+    for idx, doc in enumerate(email_docs):
+        collection.add(documents=[doc], ids=[f"email_{idx+1}"])
+        print(f"Added email_{idx+1}")
+
+fill_chroma_db()
+----
+
+Next, make the vector database queryable by the agent by creating a tool that can search the `email_history` collection.
+
+The following code defines a tool called `query_database`, which uses ChromaDB to query the collection. It connects to `email_history` and submits a query based on the input text.
+
+To turn a standard Python function into a tool when using OpenAI's Agents SDK, add the `@tool` decorator above the function definition.
+
+A decorator in Python is a special type of function that modifies the behavior of another function. When you apply a decorator to a function, it wraps the original function and enhances it with additional functionality.
+
+[source,python,indent=0]
+----
+import chromadb
+from chromadb.config import Settings
+
+@function_tool
+def query_database(query_text, n_results=3):
+    """
+    Query emails using semantic search from a local ChromaDB collection.
+    """
+
+    # Set up ChromaDB client and collection
+    chroma_dir = "./chroma_email_history_db"
+    client = chromadb.Client(Settings(persist_directory=chroma_dir))
+    collection = client.get_or_create_collection("email_history")
+
+    # Perform the query
+    results = collection.query(
+        query_texts=[query_text],
+        n_results=n_results,
+        include=["documents"],
+    )
+    return {
+        "query": query_text,
+        "documents": (
+            results["documents"][0] if results["documents"] else []
+        ),
+    }
+----
+
+Next, define the sales agent. This agent has access to the tool you just created for negotiating with customers.
+
+The code imports the required modules and uses the `Agent` class to create a new agent. When creating an agent, provide a name, instructions, the tools it can access, and the LLM it uses.
+
+[source,python,indent=0]
+----
+from agents import Agent, Runner
+from agents import trace
+
+# Create a negotiation agent with email search capability
+salesman_agent = Agent(
+    name="Negotiation Agent",
+    instructions="""You are a skilled negotiation agent
+    representing a salesperson.
+
+    Your role:
+    - Analyze the current email conversation history
+    - Search for relevant information using the query_database tool
+    - Generate informed responses with strategic counter-offers
+
+    Process:
+    1. Use query_database to find relevant context from email history
+    2. Analyze customer concerns and pricing constraints
+    3. Craft a professional response with a competitive counter-offer
+    4. Maintain a collaborative tone while protecting profit margins
+    """,
+    tools=[query_database],
+    model="gpt-5.2"
+)
+
+# Helper function to run the negotiation agent
+async def negotiate_with_customer(email_history):
+    with trace("Negotiation Response"):
+        result = await Runner.run(
+            salesman_agent,
+            f"Email conversation history:\n{email_history}"
+        )
+    return result.final_output
+----
+
+Now test the agent by providing the existing email history.
+
+The email history contains an email chain between a customer and a salesperson:
+
+1. The customer wants to buy 15 laptops for no more than 950 EUR per laptop, though the retail price is 1,299 EUR.
+2. The salesperson offers a 12% discount.
+3. The customer responds that the discount is insufficient and claims they can get a similar laptop from another supplier for 1,000 EUR.
+
+The discussion currently ends there.
+
+The following code feeds this email history to the agent so it can continue the negotiation:
+
+[source, python]
+----
+# Example: Using the negotiation agent
+import asyncio
+from agents import trace
+
+async def demonstrate_negotiation():
+    with open("./sample_data/sample_email_history.txt",
+              "r", encoding="utf-8") as f:
+        email_history = f.read()
+
+    # Generate negotiation response using the agent
+    with trace("Automated Customer Response"):
+        response = await negotiate_with_customer(email_history)
+
+    print(response)
+    return response
+
+await demonstrate_negotiation()
+----
+
+So far, this only works in one direction. To simulate a full negotiation, define a customer agent that replies on behalf of the customer.
+
+Additionally, define a moderator agent. The moderator facilitates the negotiation by alternating turns between customer and salesperson.
+
+To allow the moderator to trigger the other agents, the code wraps each agent as a tool using the `AsTool` function and provides a tool description. This gives the moderator access to two tools:
+
+* A customer-agent tool, which calls the customer agent
+* A salesperson-agent tool, which calls the salesperson agent
+
+Here is the complete code that defines the moderator and calls the salesperson and customer agents separately.
+
+[source,python,indent=0]
+----
+from agents import Agent, Runner
+
+async def run_negotiation_process():
+    """
+    Orchestrates a negotiation between customer and salesperson agents
+    using a moderator agent to facilitate the conversation.
+    """
+    # Load the email history from file
+    with open(
+        "./sample_data/sample_email_history.txt", "r", encoding="utf-8"
+    ) as f:
+        email_history = f.read()
+
+    # Define the customer agent
+    customer_agent = Agent(
+        name="Customer",
+        instructions="""Negotiate for the best laptop deal.
+                       Be polite but persistent.
+                       Respond to the email chain below.""",
+        model="gpt-5-mini",
+    )
+
+    # Convert agents to tools for the moderator
+    customer_agent_tool = customer_agent.as_tool(
+        tool_name="customer",
+        tool_description=(
+            "Tool that represents the customer in negotiations."
+        )
+    )
+
+    salesman_agent_tool = salesman_agent.as_tool(
+        tool_name="salesman",
+        tool_description=(
+            "Tool that represents the salesperson in negotiations."
+        )
+    )
+
+    # Define the moderator agent with clear instructions
+    moderator_instructions = """
+    You are a moderator facilitating negotiation between
+    customer and salesperson.
+
+    Process:
+    1. Receive email history with the last message from customer
+    2. Use salesman_agent_tool to generate salesperson response
+    3. Append response to email history
+    4. Use customer_agent_tool to generate customer response
+    5. Continue alternating until agreement or breakdown
+
+    Rules:
+    - Aim for mutually beneficial agreement
+    """
+
+    moderator_agent = Agent(
+        name="Moderator",
+        instructions=moderator_instructions,
+        model="gpt-5-mini",
+        tools=[customer_agent_tool, salesman_agent_tool]
+    )
+
+    # Execute the negotiation with tracing
+    with trace("Negotiation Process"):
+        responses = await Runner.run(
+            moderator_agent,
+            f"Begin negotiation with this email history: {email_history}"
+        )
+
+    return responses
+----
+
+If you run the full code, the moderator alternately calls the customer-agent tool and the salesperson-agent tool. The conversation continues until they reach an agreement or hit a maximum number of iterations.
+
+If you are using OpenAI Agents SDK with the OpenAI API endpoint, you can view https://platform.openai.com/traces[traces] in your OpenAI account. The interface shows, for each agent call, the input, output, and time taken.
+
+<<image_salesman_moderator_openai_agents_trace>> shows a screenshot of the conversation between salesperson, customer, and moderator agents. In the example, the last message comes from the customer agent, thanking the salesperson but indicating they are not yet satisfied. The customer still wants to reach 950 euros per laptop, perhaps by adding a service agreement. The negotiation has not concluded: the agent stopped only because it reached the maximum number of iterations.
+
+[[image_salesman_moderator_openai_agents_trace]]
+.OpenAI Agents SDK trace showing the negotiation process between customer and salesman agents
+image::img/ch10_images/salesman_moderator_openai_agents_trace.png[OpenAI Agents trace timeline: Sequential records of negotiation exchanges between salesman and customer agents, showing tool calls for query database, LLM reasoning, and message content. Final customer response indicates negotiation incomplete]
+
+==== Discussion
+
+OpenAI's Agents SDK is a lightweight framework for building agents. It covers guardrails, agent handoffs, and step-by-step tracing. In Python, a decorator modifies function behavior. The `@function_tool` decorator converts a function into a tool agents can invoke.
+
+The SDK provides built-in tracing, guardrails, and controls to prevent endless loops. Review traces at https://platform.openai.com/traces[OpenAI Platform Traces]. Each run logs as a separate entry showing the complete execution steps. <<image_openai_traces_page>> displays the agent trace dashboard where you can monitor individual agent runs and examine their full execution history.
+
+[[image_openai_traces_page]]
+.OpenAI Agent Trace: Monitor and visualize agent actions, tool calls, and model usage.
+image::img/ch08_images/openai_traces_page.png[alt="Screenshot of OpenAI Agent Trace dashboard: table of individual agent runs with expandable entries showing full execution traces including agent actions, tool invocations, and model interactions for each step."]
+
+The SDK wraps agents as tools that other agents can invoke, enabling hierarchical delegation. The moderator pattern coordinates specialized sub-agents with distinct objectives but shared conversation context. Each agent exposes a simple interface (input text, output text), making them interchangeable and testable in isolation.
+
+Use this pattern for multi-party interactions like negotiations, support routing, or collaborative editing where different roles need distinct objectives. The moderator passes conversation history to each sub-agent.
+
+Avoid this pattern when latency is critical. Each agent handoff requires a full LLM call, and multi-turn conversations accumulate costs linearly. For simple task delegation without dialogue, direct function calls or routing patterns are more efficient.
+
+The tradeoff between lightweight and heavyweight frameworks becomes apparent at scale. OpenAI Agents SDK provides minimal abstractions but requires you to implement coordination logic, error handling, and state management. LangGraph manages shared state automatically but requires understanding graph-based execution models. Ready-to-use OpenAI tools reduce development time but introduce vendor coupling.
+
+[TIP]
+====
+You might have heard of the Agent framework https://github.com/openai/swarm/tree/main[Swarm]. Swarm was also from OpenAI and served as a lightweight multi-agent orchestration framework. However, Swarm has been completely replaced by OpenAI Agents SDK. If you used Swarm for your agent setup, I recommend migrating to OpenAI Agents SDK.
+====
+
+==== See Also
+
+* https://platform.openai.com/docs/guides/agents[OpenAI Agents SDK documentation] provides comprehensive guide including agent handoffs and advanced patterns
+* https://docs.langchain.com/oss/python/integrations/langgraph[LangGraph documentation] for building stateful multi-agent workflows with coordination patterns
+
+[[mcp_recipe]]
+=== Enriching Your Agent's Capabilities with MCP Tools
+
+==== Problem
+
+You want to enhance and extend your agents' toolkits by using tools developed by others and shared in the form of an MCP server.
+
+==== Solution
+
+This recipe builds a cooking-assistant agent that searches the web for recipes, analyzes them, and saves them. To browse the web, the code uses the Playwright MCP server to control a web browser.
+
+[WARNING]
+====
+Some MCP servers do not run smoothly on Windows, particularly in Jupyter Notebook. If you encounter too many errors, you may need to switch to Linux. With Microsoft WSL, you can install a Linux subsystem directly on a Windows machine. To set up WSL on Windows 10 or 11, open PowerShell and run `wsl --install`, which installs Ubuntu by default. For details, see the https://learn.microsoft.com/en-us/windows/wsl/install[installation guide] on the Microsoft website.
+====
+
+MCP servers exist in many popular languages, including Go, Java, Kotlin, C#, PHP, Node.js, and Python. This recipe uses the Node.js-based Playwright tooling, so you will need Node.js and the NPM package manager. If you use a Python-based MCP server instead, you will need Python and pip.
+
+You will also need a package-execution tool that can run scripts and packages without permanently installing them. For Python-based servers, this is commonly `uvx`; for JavaScript-based tools, it is `npx`. The MCP ecosystem offers a wide range of servers across different categories, including filesystem operations, web browsing, data access, and various integrations, as shown in <<image_MCP_server>>.
+
+[[image_MCP_server]]
+.Example MCP servers and tools
+image::img/ch10_images/mcp_server_landscape.png[MCP server ecosystem diagram: Categorized MCP servers for filesystem, web browsing, data access, and integrations with language support indicators for Node.js, Python, Go, Kotlin, C#, PHP, and Java. Shows breadth of MCP tool options]
+
+In this recipe, the MCP client is an agent built with the OpenAI Agents SDK. To use it, install the OpenAI Agents package:
+
+[source, bash]
+----
+pip install openai-agents
+----
+
+The rest of the recipe shows how this agent can connect to multiple MCP servers. The first step is to install the MCP server you need. To see available MCP servers in the NPM registry, run the following command:
+
+[source,bash]
+----
+npm search @modelcontextprotocol
+----
+
+You will get a list of available servers. <<image_list_of_available_mcp_tool_figma>> shows one example: the Figma MCP server.
+
+[[image_list_of_available_mcp_tool_figma]]
+.List of available MCP servers
+image::img/ch10_images/list_of_available_mcp_tool_figma.png[NPM registry search results table: List of available MCP servers with descriptions, popularity metrics, and version information from npm search command]
+
+The following commands show how to install the MCP server used in this recipe. The Playwright MCP server is one of the most popular MCP tools. For additional instructions, see the https://github.com/microsoft/playwright-mcp[Playwright MCP GitHub repo].
+
+[source,bash]
+----
+# Using npm
+npm install -g @modelcontextprotocol/server-playwright
+
+# Or using the community version
+npm install -g @playwright/mcp@latest
+----
+
+The next code snippet configures the MCP client to use the MCP server you just installed. It uses the MCP server wrapper class from the OpenAI Agents SDK to connect to the Playwright MCP server. The parameters specify which server the agent is allowed to use. When you execute the snippet, it lists all tools available from that MCP server and stores them in the `tools` variable.
+
+[source,python,indent=0]
+----
+import asyncio
+from agents.mcp import MCPServerStdio
+
+
+async def connect_to_playwright():
+    # Define connection parameters
+    # "npx" runs Node.js packages,
+    # "@playwright/mcp@latest" specifies the package
+    params = {"command": "npx", "args": ["@playwright/mcp@latest"]}
+
+    # Create server connection with extended timeout
+    # Increased from default 5s
+    async with MCPServerStdio(
+        params=params, client_session_timeout_seconds=30
+    ) as server:
+        # List available tools from the server
+        tools = await server.list_tools()
+        print("Available tools:", tools)
+
+# Run the async function
+if __name__ == "__main__":
+    asyncio.run(connect_to_playwright())
+----
+
+In <<image_list_of_tools_playwright_mcp>>, you can see what the result looks like. The `tools` object is a dictionary containing a list of tools. For example, one tool closes the browser, another resizes the browser, another uploads a file, and so on. In general, most browser actions are exposed as clearly described tools.
+
+[[image_list_of_tools_playwright_mcp]]
+.Playwright MCP server tools
+image::img/ch10_images/list_of_playwright_tools.png[Playwright MCP server tools list: Detailed dictionary showing available browser automation tools like close browser, resize browser, upload file, click element with descriptions and parameters for agent use]
+
+The next step is to use the Playwright tools for something useful. The following code snippet uses it. It defines a research agent that uses the MCP server, the MCP Playwright server, and the MCP filesystem server to save a file.
+
+The agent is instructed that it can browse websites using the tools from the Playwright MCP server and save information to a file. In the example run, the agent is instructed to find a chocolate chip cookie recipe and save the recipe to a new Markdown file.
+
+[source,python,indent=0]
+----
+import asyncio
+from agents.mcp import MCPServerStdio
+from agents import Agent, Runner
+
+async def create_cookie_research_agent():
+    # MCP server configurations
+    files_params = {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+    }
+    browser_params = {"command": "npx", "args": ["@playwright/mcp@latest"]}
+
+    # Agent instructions
+    instructions = "You can browse websites and save information to files."
+
+    async with MCPServerStdio(
+        params=files_params, client_session_timeout_seconds=60
+    ) as files:
+        async with MCPServerStdio(
+            params=browser_params, client_session_timeout_seconds=60
+        ) as browser:
+
+            # Create agent
+            agent = Agent(
+                name="research_agent",
+                instructions=instructions,
+                model="gpt-5-mini",
+                mcp_servers=[files, browser],
+            )
+
+            # Run task
+            result = await Runner.run(
+                agent,
+                "Find a chocolate chip cookie recipe and "
+                "save it to recipe.md"
+            )
+
+            print(result.final_output)
+
+
+if __name__ == "__main__":
+    asyncio.run(create_cookie_research_agent())
+----
+
+Once you run the script and it completes successfully, you should find a new Markdown file containing a chocolate chip cookie recipe saved in the same directory as your script.
+
+==== Discussion
+
+The Model Context Protocol (MCP) standardizes how LLMs and tools interact. Like HTTP for browsers, MCP lets any MCP-compatible agent use any MCP-compatible tool without custom integration code. This solves tool integration: without MCP, each framework requires its own tool format.
+
+MCP has three components: client, server, and protocol. The client is your agent application. Servers provide tools and data sources, running locally or remotely. You can build custom MCP servers for your own tools. <<image_how_mcp_clients_work>> illustrates this architecture, showing how MCP clients (such as custom agents or Claude) connect to both local servers (like Playwright, FileSystem, and custom tools) and remote servers (such as GitHub, Stripe, and Slack) through the standardized MCP protocol.
+
+[[image_how_mcp_clients_work]]
+.MCP Architecture: Clients connect to local or remote servers to access tools and services
+image::img/ch10_images/image_how_mcp_clients_work.png[MCP architecture diagram: MCP Client including custom agent and Claude app connects to Local MCP Servers like Playwright, FileSystem, and custom Weather tool and Remote MCP Servers like GitHub, Stripe, and Slack. Illustrates standardized tool protocol]
+
+Use MCP when building tools to share across projects or teams. A database query tool as an MCP server works with any agent framework supporting MCP. Update the MCP server once rather than maintaining multiple framework-specific versions.
+
+Avoid MCP for simple single-purpose agents where tools are tightly coupled to agent logic. The protocol overhead only pays off when tool reusability or cross-framework compatibility matter.
+
+The tradeoff is additional infrastructure. MCP servers run as separate processes, requiring deployment, monitoring, and network-level error handling. Your agent must handle unreachability, timeouts, and malformed responses.
+
+Security differs from local function calls. MCP servers accept network requests, requiring authentication, authorization, and input validation. Each MCP server expands your attack surface.
+
+==== See Also
+
+* https://modelcontextprotocol.io/docs/getting-started/intro[Model Context Protocol documentation] provides official guide to building MCP servers and clients
+* https://openai.github.io/openai-agents-python/mcp/[OpenAI Agents SDK MCP integration guide] offers instructions for using MCP with OpenAI Agents SDK
+* https://cookbook.openai.com/[OpenAI Cookbook MCP tutorials] includes practical tutorials on MCP implementation
+* https://mcpservers.org/[MCP Servers directory] contains collection of available MCP servers for integration
+
+[[langgraph_recipe]]
+=== Building an Agentic System Using LangGraph
+
+==== Problem
+
+You want to build a complex agent that can plan, call tools, observe results, and loop until completion while maintaining control over the execution flow in a graph and visualizing that flow.
+
+==== Solution
+
+This recipe creates an assistant that can provide weather information and, based on the weather, suggest the best means of transportation to get from A to B and what kind of clothes to wear.
+
+To define the flow of this agentic system in LangGraph, you will work with three core components: state, nodes, and edges. The state tracks the conversation, nodes perform actions, and edges control the flow.
+
+To run the code, you need the LangGraph library. In addition, the weather API example uses GeoPy to resolve coordinates. The weather API is then called using the Requests library.
+
+[source,bash]
+----
+pip install langgraph geopy requests langchain_openai langchain-core pydantic
+----
+
+The following code defines an agent that can tell you the weather, suggest how to get from A to B, and provide tips on what to wear.
+
+For this agent, the state stores the ongoing conversation history between you and the agent as a list of messages. After each node, the state is updated. LangGraph provides a helper called `add_messages` that updates the messages list in the state object by appending it. The function works like a reducer; it takes the current list and new messages and returns the combined list.
+
+The following code snippet defines the initial state for the agent. It contains an empty list of messages.
+
+[source,python]
+----
+from typing import Annotated,Sequence, TypedDict
+
+from langchain_core.messages import BaseMessage
+# helper function to add messages to the state
+from langgraph.graph.message import add_messages
+
+
+class AgentState(TypedDict):
+    """The state of the agent."""
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+    number_of_steps: int
+----
+
+The following code uses LangChain's tools library. You can use it as a decorator for functions to turn them into tools. Tool inputs are defined as a Pydantic model.
+
+The next snippet describes:
+
+* A tool that enables the agent to fetch the current weather forecast.
+* A second tool that takes audio input (spoken user instructions) and transcribes it.
+
+In the docstrings of functions that are turned into tools, briefly describe what the function does so the agent can map user questions to the correct tool. Do the same for the expected fields in the Pydantic model.
+
+[source,python]
+----
+from langchain_core.tools import tool
+from geopy.geocoders import Nominatim
+from pydantic import BaseModel, Field
+import requests
+
+geolocator = Nominatim(user_agent="weather-app")
+
+class SearchInput(BaseModel):
+    location: str = Field(
+        description="The city and state, e.g., San Francisco"
+    )
+    date: str = Field(
+        description="the forecasting date for when to get "
+        "the weather format (yyyy-mm-dd)"
+    )
+
+@tool("get_weather_forecast", args_schema=SearchInput, return_direct=True)
+def get_weather_forecast(location, date):
+    """Retrieves the weather using Open-Meteo API for a given
+    location (city) and a date (yyyy-mm-dd).
+    Returns a dict mapping time -> temperature for each hour.
+    """
+    location = geolocator.geocode(location)
+    if location:
+        try:
+            url = "https://api.open-meteo.com/v1/forecast"
+            params = {
+                "latitude": location.latitude,
+                "longitude": location.longitude,
+                "hourly": "temperature_2m",
+                "start_date": date,
+                "end_date": date,
+            }
+            response = requests.get(url, params=params)
+            data = response.json()
+            hourly = data.get("hourly", {})
+            times = hourly.get("time", [])
+            temps = hourly.get("temperature_2m", [])
+            result = {}
+            for t, temp in zip(times, temps):
+                result[t] = temp
+            return result
+        except Exception as e:
+            return {"error": str(e)}
+    else:
+        return {"error": "Location not found"}
+
+class AudioInput(BaseModel):
+    audio_path: str = Field(
+        description="Path to the audio file to transcribe"
+    )
+
+@tool("transcribe_audio", args_schema=AudioInput, return_direct=True)
+def transcribe_audio(audio_path):
+    """Transcribe audio file into text using OpenAI Whisper."""
+    try:
+        with open(audio_path, "rb") as audio_file:
+            transcript = openai.Audio.transcribe(
+                model="whisper-1",
+                file=audio_file
+            )
+            return transcript.text
+    except Exception as e:
+        return {"error": str(e)}
+
+tools = [get_weather_forecast, transcribe_audio]
+----
+
+Next, initialize the LLM and bind the tools to it. The LLM acts as the orchestrator, which knows which tools the agent can access and decides which tool to call with which parameters.
+
+In the following code, the LLM is initialized and the weather-forecast tool. If you invoke the model with a query such as asking for the weather in Berlin on a particular date, the LLM can infer that the weather tool expects a location and a date as inputs.
+
+For this Berlin example, no extra function is required to translate "Berlin" into a geolocation, because the model knows the coordinates of Berlin. The LLM calls the tool with the correct parameters and returns the result.
+
+[source,python]
+----
+from datetime import datetime
+from langchain_openai import ChatOpenAI
+
+# Create LLM class
+llm = ChatOpenAI(
+    model="gpt-5.2",
+    temperature=1.0,
+    max_retries=2,
+)
+
+# Bind tools to the model
+model = llm.bind_tools([get_weather_forecast])
+
+# Test the model with tools
+query = f"What is the weather in Berlin on {datetime.today()}?"
+res = model.invoke(query)
+
+print(res)
+----
+
+The next step, define nodes and edges. Each node is defined as a Python function. In the following code, one node calls the LLM, and another node calls the selected tool. Both nodes take the agent state as input.
+
+You also define an edge function that determines whether the flow should continue. In this case, it checks the last message in the message list to see whether it contains `tool_calls`. If the last message is not a tool call, the run ends.
+
+[source,python]
+----
+from langchain_core.messages import ToolMessage
+from langchain_core.runnables import RunnableConfig
+
+tools_by_name = {}
+for _t in tools:
+    tools_by_name[_t.name] = _t
+
+# Define our tool node
+def call_tool(state: AgentState):
+    outputs = []
+    # Iterate over the tool calls in the last message
+    for tool_call in state["messages"][-1].tool_calls:
+        # Get the tool by name and arguments in smaller steps
+        # to keep lines short
+        tool_name = tool_call["name"]
+        tool_args = tool_call["args"]
+        tool_obj = tools_by_name[tool_name]
+        tool_result = tool_obj.invoke(tool_args)
+        outputs.append(
+            ToolMessage(
+                content=tool_result,
+                name=tool_name,
+                tool_call_id=tool_call["id"],
+            )
+        )
+    return {"messages": outputs}
+
+def call_model(
+    state: AgentState,
+    config: RunnableConfig,
+):
+    # Invoke the model with the system prompt and the messages
+    response = model.invoke(state["messages"], config)
+    # Return a list, because this will get added to the
+    # existing messages state using the add_messages reducer
+    return {"messages": [response]}
+
+
+# Define the conditional edge that determines whether to continue or not
+def should_continue(state: AgentState):
+    messages = state["messages"]
+    # If the last message is not a tool call, then finish
+    if not messages[-1].tool_calls:
+        return "end"
+    # default to continue
+    return "continue"
+----
+
+At this point, you have all the components needed to build the agent as a graph.
+
+The following code creates a new graph, adds the nodes, and sets the entry point. It then adds the edge that is evaluated after the LLM step.
+
+After each LLM call, the `should_continue` edge checks whether the LLM decided to call a tool next or whether it produced a final response. You also connect the tools back to the LLM using a normal edge to continue the loop.
+
+[source,python]
+----
+from langgraph.graph import StateGraph, END
+
+# Define a new graph with our state
+workflow = StateGraph(AgentState)
+
+# 1. Add our nodes
+workflow.add_node("llm", call_model)
+workflow.add_node("tools",  call_tool)
+# 2. Set the entrypoint as `agent`, this is the first node called
+workflow.set_entry_point("llm")
+# 3. Add a conditional edge after the `llm` node is called.
+workflow.add_conditional_edges(
+    # Edge is used after the `llm` node is called.
+    "llm",
+    # The function that will determine which node is called next.
+    should_continue,
+    # Mapping for where to go next, keys are strings from the
+    # function return, and the values are other nodes.
+    # END is a special node marking that the graph is finish.
+    {
+        # If `tools`, then call the tool node.
+        "continue": "tools",
+        # Otherwise finish.
+        "end": END,
+    },
+)
+# 4. Add a normal edge after `tools` is called, `llm` node is called next.
+workflow.add_edge("tools", "llm")
+
+# Now you can compile and visualize the graph
+graph = workflow.compile()
+----
+
+Because the agent is defined as a graph, you can also print it to get an overview of the execution flow and decision points.
+
+[source,python]
+----
+from IPython.display import Image, display
+
+display(Image(graph.get_graph().draw_mermaid_png()))
+----
+
+As shown in <<image_visualizing_langgraph_agent>>, the graph contains two nodes: `llm` and `tools`. The `llm` node calls the LLM, and the `tools` node calls the selected tool. The edges determine whether execution ends or continues. If it continues, the tool result is fed back into the LLM.
+
+[[image_visualizing_langgraph_agent]]
+.Visualizing the LangGraph agent
+image::img/ch10_images/visualize_graph.png[LangGraph visualization: Nodes including llm node and tools node with edges where llm connects to conditional edge for should continue branching to either END or tools, tools connects back to llm. Shows agent loop structure]
+
+To run the agent, define an `inputs` dictionary and call the agent with streaming enabled to print intermediate steps.
+
+[source,python]
+----
+from datetime import datetime
+
+# Create our initial message dictionary
+inputs = {
+    "messages": [
+        ("user", f"What is the weather in Berlin on {datetime.today()}?")
+    ]
+}
+
+# Call our graph with streaming to see the steps
+for state in graph.stream(inputs, stream_mode="values"):
+    last_message = state["messages"][-1]
+    last_message.pretty_print()
+----
+
+<<image_langgraph_agent_run>> shows the printed steps of the agent run. First, the user asks for the weather in Berlin. The LLM decides to call the weather-forecast tool with the location Berlin and a date in October 2025. The tool executes, and the result is returned to the LLM, which interprets it and generates a final response. Because the final response does not contain another tool call, the run ends.
+
+[[image_langgraph_agent_run]]
+.LangGraph agent run output
+image::img/ch10_images/langgraph_agent_run_streaming.png[Streaming output log: User question about weather, LLM response with tool calls including function with location and date parameters, Tool execution result with temperature data, LLM final response interpretation and answer]
+
+[source,python]
+----
+state["messages"].append(("user", "Would it be in Munich warmer?"))
+
+for state in graph.stream(state, stream_mode="values"):
+    last_message = state["messages"][-1]
+    last_message.pretty_print()
+----
+
+With a new user message, the whole process would start again.
+
+==== Discussion
+
+LangGraph defines agent control flow as a graph with three core components:
+
+State::
+Tracks what is happening and holds shared data.
+
+Nodes::
+Do the work. Functions that take the current state, perform an action, and return updated state.
+
+Edges::
+Connect nodes and determine which node runs next.
+
+<<image_chat_bound_tools>> shows the ReAct pattern. The router is an LLM that decides whether to call an external tool.
+
+[[image_chat_bound_tools]]
+.Chat with bound tools
+image::img/ch10_images/basic_react_process_flow.png[ReAct pattern flowchart: Chat LLM with Bound Tools where router LLM evaluates tool relevance branching to either Call Tool with tool parameters or Return Final Answer. Shows decision-making logic for tool invocation]
+
+LangGraph makes agent state and control flow explicit. You define exactly which node executes next based on current state. Edges define valid transitions, preventing undefined states or infinite loops.
+
+Use LangGraph when you need visibility into complex multi-step behavior. The graph visualization shows possible execution paths and which one the agent took. This helps debug unexpected decisions. State management becomes valuable when coordinating multiple agents that share context. LangGraph maintains shared state automatically.
+
+The LangChain ecosystem includes LangGraph for workflows, LangChain for orchestration, and LangSmith for observability. <<image_langgraph_vs_langchain>> shows how these components relate.
+
+[[image_langgraph_vs_langchain]]
+.LangGraph vs. LangChain: Key Differences at a Glance
+image::img/ch10_images/langgraph_langchain.png[Venn diagram comparison: LangChain for general LLM orchestration framework, LangGraph for graph-based agentic workflows with state, edges, and nodes, and LangSmith for observability and monitoring. Shows integration points and distinct capabilities]
+
+Avoid LangGraph for simple linear workflows. If your agent executes a fixed sequence without branching logic or shared state, the graph abstraction adds complexity without benefit.
+
+The tradeoff is framework coupling. LangGraph's state management and graph execution become deeply embedded in your code architecture. Migrating means reimplementing the entire state flow and transition logic. LangSmith provides bundled observability but increases ecosystem coupling.
+
+==== See Also
+
+* https://academy.langchain.com/courses/intro-to-langgraph[LangChain Academy LangGraph course] provides comprehensive modules on state, memory, and deployment
+* https://ai.google.dev/gemini-api/docs/langgraph-example[Gemini API LangGraph tutorial] offers guide to using LangGraph with the Gemini API

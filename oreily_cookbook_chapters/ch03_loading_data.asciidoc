@@ -1,0 +1,1200 @@
+[[chapter_1_loading_data]]
+== Loading Data
+
+About https://mitsloan.mit.edu/ideas-made-to-matter/tapping-power-unstructured-data[80% of enterprise information is unstructured], distributed across presentations, documents, emails, and media files. <<figure-distribution-data-in-companies>> shows some of the common data types.
+
+[[figure-distribution-data-in-companies]]
+.A common distribution of data in companies.
+image::img/ch03_images/distribution-data-in-companies.png[Pie chart showing distribution of data types in companies, with approximately 80% unstructured data (documents, presentations, emails) and 20% structured data (databases, spreadsheets)]
+
+This chapter shows how to turn common data sources into text you can embed and retrieve. Most RAG retrievers work with text embeddings, so a practical first step is to convert different formats into a consistent text representation.
+
+<<image-llm-rag>> summarizes the main components of a RAG system, showing both the indexing pipeline (loading and processing documents) and the runtime retrieval flow (retrieving relevant chunks and generating answers).
+
+[[image-llm-rag]]
+.Overview of the components of a RAG system.
+image::img/ch03_images/overview-rag.png[An overview of a RAG system]
+
+This chapter explains the loading process for various document types. All code is available in the https://github.com/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch03_loading_data/loading_data_to_RAG.ipynb[book's GitHub repository].
+
+[WARNING]
+====
+This book builds core components from scratch to clarify the underlying concepts. In production, orchestration frameworks such as LangChain or LlamaIndex can accelerate development, but they also introduce moving parts like frequent breaking changes, fast evolving APIs, and additional abstractions.
+
+If you use these frameworks, pin dependency versions, follow their upgrade guides, and isolate framework specific code behind small adapters. For the most stable foundation, rely on mature general purpose libraries instead, for example, `pandas`, `numpy`, `sqlalchemy`, `pydantic`, and `requests`, and keep the RAG logic testable without framework coupling.
+====
+
+You can find all the code examples for this chapter in the https://github.com/polzerdo55862/RAG-with-Python-Cookbook[book's GitHub repository].
+
+[[loading_word_files]]
+=== Loading Word Files in Python
+
+==== Problem
+
+You want to load Word files into your RAG system.
+
+==== Solution
+
+Use `python-docx` for simple text extraction when you don't need to distinguish element types. Use `unstructured` instead, when you need to preserve document structure (headings, paragraphs, lists, images) for targeted processing of the elements.
+
+<<image-loading-word-files>> shows the basic process when loading documents with `unstructured`. It breaks down the document into its structured elements, like a text paragraph, headline, listing, or image.
+
+[[image-loading-word-files]]
+.How to load Word files using python-docx or unstructured.
+image::img/ch03_images/extract-text-from-word-file.png[Loading Word Files]
+
+Both approaches are demonstrated below. The first uses `python-docx`, the second uses `unstructured`. Both examples use `pandas` for further data processing. Install the required libraries:
+
+----
+pip install python-docx unstructured pandas
+----
+
+The following code uses `python-docx` to load text from a sample Word file and concatenate all paragraphs into a single string.
+
+[source, python, indent=0]
+----
+import os
+from docx import Document
+
+file_path = (
+    "../datasets/word_files/"
+    "2023_Jan_7_Feature_Engineering_Techniques.docx"
+)
+
+doc = Document(file_path)
+
+text = []
+for paragraph in doc.paragraphs:
+    text.append(paragraph.text)
+
+full_text = "\n".join(text)
+----
+
+<<screenshot_loading_word_files>> shows the output with line breaks preserved as "\n" characters.
+
+[[screenshot_loading_word_files]]
+.The output of the loaded Word file as a string
+image::img/ch03_images/screenshot_loading_word_files.png[Screenshot showing concatenated text output from python-docx with line breaks preserved as newline characters]
+
+This approach works for continuous narrative text but loses structural information. To preserve element types (titles, narrative text, lists), split and label them during loading.
+
+The following code shows an alternative approach, which is using the function `partition_docx` from the unstructured library to load the Word file, storing each element with its metadata (file path, category, text content, last modified) in a dictionary before converting to a Pandas DataFrame.
+
+[source, python, indent=0]
+----
+from unstructured.partition.docx import partition_docx
+import os
+import pandas as pd
+
+elements = partition_docx(filename=file_path)
+
+list_of_elements = []
+
+for element in elements:
+    element_dict = {
+        "element_id": element.id,
+        "file_path": file_path,
+        "category": element.category,
+        # e.g. "Title", "NarrativeText", "ListItem"
+        "text": element.text,
+        "last_modified": element.metadata.last_modified,
+    }
+
+    list_of_elements.append(element_dict)
+
+elements_df = pd.DataFrame(list_of_elements)
+----
+
+<<screenshot_load_word_files_with_unstructured>> shows each element with its category and metadata.
+
+[[screenshot_load_word_files_with_unstructured]]
+.Structured Word file output with element categories and metadata
+image::img/ch03_images/screenshot_load_word_files_with_unstructured.png[Screenshot showing pandas DataFrame with partitioned Word document elements including element IDs, categories (Title, NarrativeText, ListItem), text content, and metadata]
+
+==== Discussion
+
+Structured loading enables targeted processing strategies. Titles can be assigned higher retrieval weights or indexed separately for hierarchical search. List items can be flagged for Q&A pair extraction. Metadata fields like `last_modified` enable time-based filtering during retrieval, preventing outdated information from appearing in results.
+
+When documents contain distinct sections (like book chapters or policy domains), hierarchical retrieval reduces noise. The system first identifies relevant sections through title matching, then searches only within those sections. This two-stage approach outperforms flat text search when user queries map to specific document segments.
+
+Avoid this approach when documents are short or homogeneous. The overhead of element-level processing only pays off when different elements require different handling or when retrieval benefits from structural filtering.
+
+[NOTE]
+====
+Most loading libraries like https://pypi.org/project/unstructured/[unstructured] or https://www.docling.ai/[docling] are especially mature in loading PDFs. When dealing with various file formats, convert all to PDF first. <<parsing-pdfs-with-multimodal-content-chapter>> covers PDF loading and processing approaches.
+====
+
+==== See Also
+
+* https://python-docx.readthedocs.io/en/latest/user/quickstart.html[python-docx Quickstart Guide] covers creating and modifying Word documents programmatically.
+* https://docs.unstructured.io/open-source/core-functionality/partitioning[unstructured partitioning documentation] explains element types, metadata extraction, and supported file formats.
+
+=== Loading PDF Files
+
+==== Problem
+
+You want to load PDF files into your RAG system.
+
+==== Solution
+
+The https://pypi.org/project/PyPDF2/[PyPDF2] library is an open-source library for splitting, merging, cropping, and transforming PDF pages. It uses https://pypi.org/project/pillow/[Pillow] to extract images.
+
+<<loading_pdf_files_and_metadata_image>> shows the pipeline: load the file, iterate over pages, extract text, and store it as metadata.
+
+[[loading_pdf_files_and_metadata_image]]
+.Loading PDF files and storing the text and metadata
+image::img/ch03_images/loading-pdfs.png[Loading PDF Files]
+
+The following code uses `PyPDF2.PdfReader()` to load the PDF and extract text and metadata from each page. This example uses a sample PDF document about feature engineering techniques, which is available in the book's code repository.
+
+[source, python, indent=0]
+----
+import PyPDF2
+import os
+import pandas as pd
+
+file_path = (
+    "../datasets/pdf_files/"
+    "2023_Jan_7_Feature_Engineering_Techniques.pdf"
+)
+
+with open(file_path, "rb") as file:
+    reader = PyPDF2.PdfReader(file)
+
+    list_of_pages = []
+    page_counter = 1
+
+    for page in reader.pages:
+        page_dict = {
+            "file_name": reader.metadata.get("/Title"),
+            "producer": reader.metadata.get("/Producer"),
+            "page_number": page_counter,
+            "text": page.extract_text(),
+            "images": page.images,
+        }
+
+        list_of_pages.append(page_dict)
+
+        page_counter += 1
+
+pages_df = pd.DataFrame(list_of_pages)
+----
+
+<<screenshot_loading_pdf_files>> shows a printout of the resulting DataFrame.
+
+[[screenshot_loading_pdf_files]]
+.The output of the loaded PDF file as a DataFrame
+image::img/ch03_images/screenshot_loading_pdf_files.png[Screenshot showing pandas DataFrame with PDF page data including filename, producer, page numbers, extracted text, and image references for each page]
+
+==== Discussion
+
+PyPDF2 extracts text from digitally generated PDFs where text exists as selectable characters. It fails on scanned PDFs or image-based documents where text appears as pixels, not characters. For those cases, use OCR engines (see <<chapter-using-OCR-to-extract-text-from-images>>) or multimodal models (see <<parsing-pdfs-with-multimodal-content-chapter>>).
+
+Page-level metadata enables filtered retrieval. You can exclude pages by date, author, or section before running semantic search, reducing computation and improving relevance. The metadata also provides source attribution, allowing users to verify information by navigating to specific pages in the original document.
+
+Use PyPDF2 when your PDFs are digitally generated (exported from Word, LaTeX, or web browsers). Its simplicity and speed make it ideal for processing large document collections where OCR overhead would be prohibitive.
+
+==== See Also
+
+* https://pypdf2.readthedocs.io/en/3.x/user/extract-text.html[PyPDF2 text extraction guide] shows methods for extracting text from digitally generated PDFs.
+* https://pypdf.readthedocs.io/en/stable/user/extract-images.html[PyPDF2 image extraction guide] covers extracting embedded images and their metadata.
+* https://docs.unstructured.io/open-source/core-functionality/partitioning[unstructured partitioning documentation] explains splitting PDFs into structured elements with metadata.
+
+[[loading_and_handling_csv_and_excel_files]]
+=== Loading and Handling Tabular Data from Excel and CSV Files
+
+==== Problem
+
+You want to load tabular data from Excel or CSV files into your RAG system.
+
+==== Solution
+
+This recipe demonstrates three approaches for handling tabular data in RAG systems. The practical examples below show Option 1 (row-to-text) and Option 2 (embed in prompt). For Option 3 (Text-to-SQL), see <<chapter_rag_web_apps>> for complete implementations.
+
+===== Option 1: Converting Table Rows to Text
+
+This approach transforms each table row into a natural language description. Column headers become context labels and values are integrated into readable text. <<image-03-loading-csv-files-transforming-rows-into-text>> illustrates the concept.
+
+[[image-03-loading-csv-files-transforming-rows-into-text]]
+.How to load tabular data by transforming table rows into text.
+image::img/ch03_images/csv-option-1-csv-rows-to-text.png[How to load tabular data by transforming rows into text]
+
+The practical example below uses the https://archive.ics.uci.edu/dataset/20/census+income[census income dataset], which is commonly used for binary classification tasks.
+
+To execute the code below, download the dataset and save it as an Excel file containing 15 columns and 48,000 rows. The code snippet uses the `openpyxl` library to open and load the Excel file, and `pandas` to process the data.
+
+[source, bash]
+----
+pip install openpyxl pandas
+----
+
+The code snippet defines a new function `create_text_description` and applies it to each row of the data frame which creates a new column `text_description` with a text snippet explaining the values in the other columns.
+
+[source, python, indent=0]
+----
+import os
+import pandas as pd
+
+file_path = "../datasets/csv_files/census-income.xlsx"
+df_excel = pd.read_excel(io=file_path)
+
+
+def create_text_description_of_row(row):
+    row["text_description"] = (
+        f"""The candidate {row['age']} years old is working in the
+            {row['workclass']} sector. The candidate was born in
+            {row['native-country']}, is {row['marital-status']}
+            and has a {row['relationship']} relationship.
+            The candidate has a {row['education']} degree and is
+            working as a {row['occupation']}. The income of the
+            candidate is {row['income']}."""
+    )
+
+    return row
+
+
+# Apply the function create_text_description_of_row
+# to each row of the data frame
+df_extended = df_excel.apply(create_text_description_of_row, axis=1)
+----
+
+<<screenshot_loading_csv_files>> shows the content of the newly created column `text_description`. Each row is a text snippet that describes the values in all the columns.
+
+[[screenshot_loading_csv_files]]
+.Text snippets generated from tabular data rows
+image::img/ch03_images/screenshot_loading_csv_files.png[Screenshot showing pandas DataFrame with new text_description column containing natural language descriptions of each row's data from the census income dataset]
+
+These text snippets can be treated like any other text by generating embeddings for them and storing them in a vector database. This works well for lookup queries but remember that aggregate queries (percentages, averages, counts) require Option 3 (Text-to-SQL) instead.
+
+===== Option 2: Embedding Tables in Prompts
+
+As an alternative to converting rows into individual text snippets, you can embed the entire table directly into the LLM prompt. This works best for small tables where the full context fits into the model's context window.
+
+[NOTE]
+====
+LLMs are not designed for numerical computation or complex data analysis. However, modern LLMs can often recognize simple patterns, compare values across rows and columns, and summarize trends at a useful level. Because the model sees the complete table, it can identify relationships that would be lost if only a few rows were retrieved.
+====
+
+<<figure-loading-csv-files-embed-table-to-prompt>> shows an example prompt template. The table is inserted into the prompt using Markdown syntax. A common approach is to include the entire table in Markdown format.
+
+[[figure-loading-csv-files-embed-table-to-prompt]]
+.How to load tabular data by embedding the whole table into the prompt.
+image::img/ch03_images/csv-option-3-embed-table-to-prompt.png[Embedding whole table into the prompt example]
+
+Keep in mind that this approach is limited by the model's context window and can become expensive for tables with more than a few hundred rows. For larger tables or complex analytical queries, Option 3 provides a more scalable solution.
+
+===== Option 3: Text-to-SQL for Complex Queries
+
+For complex analytical queries or large datasets, the Text-to-SQL approach is the most powerful option. The tabular data is uploaded to a SQL database. When a user asks a question, an LLM analyzes the table schema and the user's question to generate an appropriate SQL query. The query results are then interpreted by the LLM to produce a natural language answer.
+
+<<figure-loading-csv-files-text-to-sql>> illustrates this process at runtime in your RAG app.
+
+[[figure-loading-csv-files-text-to-sql]]
+.How to load tabular data by uploading it to an SQL database and using the Text-to-SQL approach to answer user questions about the data.
+image::img/ch03_images/csv-option-2-query-databases.png[Text-to-SQL approach: upload table and query database]
+
+For a more comprehensive Text-to-SQL implementation, see <<chapter_querying_a_postgresql_database>> for database connectivity and <<chapter_rag_web_apps>> for a full end-to-end Text-to-SQL RAG application.
+
+==== Discussion
+
+Three fundamentally different approaches exist for handling tabular data in RAG. Each suits different query types and dataset sizes. <<table_tabular_data_approaches_comparison>> summarizes the trade-offs.
+
+[[table_tabular_data_approaches_comparison]]
+.Choosing the Right Approach for Tabular Data in RAG
+[cols="1,2,2"]
+|===
+|Approach |Best For |Limitations
+
+|Option 1: Row-to-Text
+|Simple lookup queries on medium datasets (hundreds to thousands of rows). Example: "What is Sarah's job title?"
+|Cannot handle aggregate queries, percentage calculations, or comparisons across rows.
+
+|Option 2: Embed Table in Prompt
+|Small tables (< 100 rows) where you need full context for analysis
+|Limited by model context window. Expensive for large tables. Poor performance with complex queries on large data.
+
+|Option 3: Text-to-SQL
+|Large datasets requiring aggregations, filtering, or complex analysis. Example: "What percentage of engineers earn over $100k?"
+|Requires database setup and SQL query generation. More complex implementation.
+|===
+
+The key tradeoff is retrieval scope versus computational cost. Row-to-text retrieves specific records through semantic search but cannot answer aggregate questions since each row is indexed separately. Prompt embedding provides full table context for analysis but becomes prohibitively expensive beyond a few hundred rows. Text-to-SQL handles arbitrarily large datasets and complex analytics but requires SQL infrastructure and query generation logic.
+
+Production systems often combine approaches based on table size and query patterns. Small reference tables (product catalogs, employee rosters) embed directly in prompts. Medium lookup datasets (customer profiles, transaction logs) use row-to-text. Large analytical datasets (sales history, sensor readings) require Text-to-SQL.
+
+[TIP]
+====
+The practical example in this recipe converted each row of the dataset into a text snippet. You can use the same approach also for classification tasks. For more details, have a look at the paper https://arxiv.org/pdf/2210.10723[TabLLM: Few-shot Classification of Tabular Data with Large Language Models].
+====
+
+==== See Also
+
+* https://developers.llamaindex.ai/python/cloud/llamaparse/examples/parse_excel_sheets/[LlamaIndex Excel loader] offers built-in parsing for Excel and CSV files.
+* https://python.langchain.com/docs/integrations/document_loaders/microsoft_excel[LangChain Excel loader] provides document loader integration for tabular data.
+
+[[chapter_querying_a_postgresql_database]]
+=== Loading Structured Data from a PostgreSQL Database
+
+==== Problem
+
+You want to connect your Python workflows to a PostgreSQL database.
+
+==== Solution
+
+
+Install PostgreSQL and https://www.pgadmin.org/[pgAdmin]. Download installers from https://www.postgresql.org/download/[postgresql.org/download/].
+
+[NOTE]
+====
+Local installations suit quick experiments. For production, use managed PostgreSQL services (e.g., Amazon Aurora) for backups, patching, monitoring, and high availability. For smaller projects, https://aws.amazon.com/lightsail/[AWS Lightsail] offers fixed monthly pricing.
+====
+
+Use pgAdmin to inspect schemas, browse tables, and run queries. For multiple database engines, consider multi-database clients like https://dbeaver.io/[DBeaver] or https://www.jetbrains.com/datagrip/[DataGrip], which support PostgreSQL, MySQL, SQLite, Oracle, DB2, and SQL Server.
+
+Connect to PostgreSQL from Python using https://www.sqlalchemy.org/[SQLAlchemy], which uses the `psycopg2-binary` adapter. Install required libraries:
+
+[source, bash]
+----
+pip install SQLAlchemy psycopg2-binary pandas python-dotenv
+----
+
+Launch PgAdmin, create a local server, and populate it with sample data from https://www.w3schools.com/postgresql/postgresql_create_demodatabase.php[w3schools.com].
+
+The following code creates an engine for executing SQL commands in PostgreSQL.
+
+[source,python,indent=0]
+----
+import os
+import pandas as pd
+from sqlalchemy import create_engine
+
+connection_string = (
+    f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{database}"
+)
+engine = create_engine(connection_string)
+
+with engine.connect() as connection:
+    query = """SELECT * FROM categories ORDER BY category_id ASC """
+    result = pd.read_sql(query, connection)
+    print(result)
+----
+
+Once populated, `results_df` returns a DataFrame with all `categories` table records sorted by `category_id`.
+
+==== Discussion
+
+PostgreSQL serves dual roles in RAG applications. It stores structured application data (user sessions, query logs, feedback) while also functioning as a vector store through the `pgvector` extension. This consolidation reduces infrastructure complexity compared to maintaining separate databases for relational and vector data.
+
+Use PostgreSQL when your queries require joining structured filters with vector searches. Examples include filtering customer embeddings by account tier, joining product descriptions with inventory status, or excluding documents based on user permissions stored in relational tables. PostgreSQL excels when your RAG app already uses it for transactional operations.
+
+Specialized vector databases like Pinecone, Qdrant, or Weaviate offer better performance for pure similarity search workloads without relational joins. They provide simpler APIs and optimizations specifically for vector operations. Choose them when you don't need to combine vector search with complex SQL queries or when maximum vector search throughput is critical.
+
+==== See Also
+
+* https://docs.sqlalchemy.org/en/20/core/engines.html[SQLAlchemy Engine Configuration] covers connection strings, pooling, and dialect-specific options.
+* https://www.datacamp.com/tutorial/sqlalchemy-tutorial-examples[SQLAlchemy tutorial with PostgreSQL examples] provides practical code for queries and database operations.
+
+[[loading_audio_files_by_using_speech_to_text_models_chapter]]
+=== Loading Audio Files Using Speech-to-Text Models
+
+==== Problem
+
+You want to load and preprocess audio files so you can add them to your RAG system's vector store.
+
+==== Solution
+
+Use OpenAI Whisper to transform audio into text. Whisper is available as both open-source software and a hosted API.
+
+In the following code snippet, OpenAI's SDK is used to send an audio file to the Whisper API endpoint.
+
+[source,python,indent=0]
+----
+import os
+from openai import OpenAI
+
+audio_file_path = "../datasets/audio_files/harvard.wav"
+
+# initialize the OpenAI client with your API key
+client = OpenAI()
+
+with open(audio_file_path, "rb") as audio_file:
+    transcription = client.audio.transcriptions.create(
+        model="whisper-1", file=audio_file
+    )
+----
+
+==== Discussion
+
+Whisper is available as both open-source software (run locally) and a hosted API (via OpenAI). Choose based on data sensitivity and infrastructure:
+
+* Whisper API: Quick setup, supports 80+ languages, no infrastructure management. Use when data privacy permits external API calls and you want to minimize operational overhead.
+* Whisper locally: Full data control, no external dependencies. Use for sensitive audio that cannot leave your environment or when API costs exceed local compute costs at scale.
+* GPT-4o transcribe API: Higher accuracy than Whisper API, better punctuation and formatting, improved handling of technical terms. Use when transcription quality justifies higher per-minute costs.
+
+Whisper handles batch transcription well but lacks features needed for specialized applications. Consider dedicated speech-to-text providers when you require:
+
+* Real-time streaming for live captioning, voice assistants, or conversational AI where sub-second latency matters
+* Speaker diarization to identify who spoke when in multi-speaker recordings, critical for meeting summaries and interview analysis
+* Custom vocabularies to improve accuracy on domain-specific terminology (medical procedures, legal terms, company names, technical jargon)
+
+<<table_summary_of_popular_asr_alternatives>> compares major providers.
+
+[[table_summary_of_popular_asr_alternatives]]
+.Summary of Popular Speech-to-Text Alternatives
+[cols="1,5,1"]
+|===
+|Provider |Key Features |Link
+
+|Google Cloud Speech-to-Text
+|Advanced speech models with automatic punctuation, speaker separation, custom vocabularies, and multi-channel audio support.
+|https://docs.cloud.google.com/speech-to-text/docs/overview
+
+|Amazon Transcribe
+|Fully managed speech-to-text service with automatic punctuation, custom vocabularies, language detection, speaker separation, and redaction of sensitive information.
+|https://aws.amazon.com/transcribe/
+
+|Microsoft Azure Speech Services
+|Speech-to-text, text-to-speech, and translation with support for custom models and optional on-device deployment.
+|https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-to-text
+
+|Deepgram
+|Voice AI platform for real-time and batch speech-to-text with high accuracy, speaker separation, and punctuation.
+|https://deepgram.com/product/speech-to-text
+
+|AssemblyAI
+|Speech-to-text for recorded and live audio with features such as speaker identification, automatic formatting, and language detection.
+|https://www.assemblyai.com/
+
+[[table_speech_to_text_alternatives]]
+|===
+
+==== See Also
+
+* https://huggingface.co/openai/whisper-large-v3[Hugging Face Whisper-Large-V3 model] provides open-source transcription with code examples.
+* https://platform.openai.com/docs/guides/speech-to-text[OpenAI speech-to-text API documentation] covers API usage, model options, and parameter tuning.
+
+[[chapter-using-OCR-to-extract-text-from-images]]
+=== Extracting Text from Images and PDFs Using Tesseract OCR
+
+==== Problem
+
+You want to extract text from images or image-like documents using open-source OCR engines you can host on your own infrastructure.
+
+==== Solution
+
+This recipe extracts text using _Optical Character Recognition (OCR)_ engines, which are traditional Machine Learning models trained for image-to-text conversion.
+
+The workflow applies to any kind of images with written text. <<figure-extracting-text-from-images-using-ocr>> shows the end-to-end process:
+
+. Convert documents to PDF format
+. Render each PDF page as an image
+. Run OCR on each page image and store extracted text with metadata (page number, image path, timestamps, PDF reference)
+
+[[figure-extracting-text-from-images-using-ocr]]
+.OCR engines can extract text from images, e.g., from photographs, technical drawings, or scanned contracts.
+image::img/ch03_images/extract-text-from-images-using-ocr.png[OCR pipeline showing conversion of scanned PDFs and images into text: normalize to PDF format, render pages as images, extract text via OCR, and store with metadata]
+
+The code in this recipe uses the most popular open-source OCR engine, https://github.com/tesseract-ocr/tesseract[Tesseract]. You can install Tesseract locally or use a managed OCR service.
+
+You can find installation guides for different operating systems in the https://tesseract-ocr.github.io/tessdoc/Installation.html[Tesseract documentation]. If you are on Windows, you can use the https://github.com/UB-Mannheim/tesseract/wiki[Windows installer] provided by the University of Mannheim.
+
+On top of that, you need to install the Python packages pdf2image, pytesseract and pillow. Note that the `pdf2image` library depends on Poppler for PDF processing. The https://pdf2image.readthedocs.io/en/latest/installation.html[pdf2image docs] provide installation instructions for Poppler for different operating systems.
+
+[source, bash]
+----
+pip install pdf2image pytesseract pillow
+----
+
+The following code snippet loads a sample PowerPoint slide with finance data and extracts the written text.
+
+[source,python,indent=0]
+----
+import os
+from pdf2image import convert_from_path
+from PIL import Image
+import pytesseract
+
+image = Image.open(
+    fp="../datasets/images/example_finance_reporting_slide.png"
+)
+
+text = pytesseract.image_to_string(image)
+----
+
+If you have a scanned PDF, the code below loads the PDF and converts each page into an image, and then uses Tesseract to extract the text from each page.
+
+[source,python,indent=0]
+----
+import os
+from pdf2image import convert_from_path
+from PIL import Image
+import pytesseract
+
+file_path = (
+    "../datasets/images/"
+    "2023_Jan_7_Feature_Engineering_Techniques.pdf"
+)
+
+images = convert_from_path(pdf_path=file_path)
+
+text = []
+for i, image in enumerate(images):
+    page_text = pytesseract.image_to_string(image)
+    text.append(page_text)
+----
+
+The variable `text` contains a list of strings, each representing the extracted text from a page of the PDF.
+
+[TIP]
+====
+For reliable source attribution, store traceable metadata alongside every extracted text chunk. At a minimum, capture the original PDF path, the derived image path, the page number, and any extraction timestamps or IDs. This lets you link retrieval results back to the exact document and page later (for citations, debugging, and re-processing).
+====
+
+==== Discussion
+
+Traditional OCR engines like Tesseract run locally, process documents quickly, and incur no per-page costs. They work well for clean text scans with standard fonts and simple layouts (contracts, forms, typed letters). Accuracy degrades on complex documents with tables, diagrams, mixed fonts, handwriting, or low-quality scans.
+
+Multimodal models handle these complex cases by understanding layout, interpreting tables, and processing diverse visual elements simultaneously. The tradeoff is cost. Multimodal API calls typically cost 100x more per page than running Tesseract locally. At scale, this difference becomes substantial.
+
+Production systems processing large document volumes often use a hybrid approach. Route simple text-heavy documents through OCR and complex documents (those with tables, diagrams, or degraded quality) to multimodal models. A document classifier or layout analyzer can automate this routing, maximizing quality while controlling costs.
+
+When to use which approach:
+
+* Tesseract or similar OCR: Clean scans, typed text, high volume (thousands to millions of pages), cost-sensitive applications, or environments where data cannot leave your infrastructure
+* Newer OCR engines (EasyOCR, PaddleOCR): Improved accuracy on handwriting and complex layouts while maintaining local deployment benefits
+* Multimodal models: Mixed content with tables and diagrams, handwritten notes, low-quality scans, or critical documents where extraction errors have high downstream costs (financial reports, legal contracts)
+
+<<column_ocr_tool_alternatives>> shows open-source OCR alternatives to Tesseract with improved capabilities.
+
+[[column_ocr_tool_alternatives]]
+.Open-source alternatives to Tesseract
+[cols="1,3,2"]
+|===
+|Tool |Key Features |Official Website
+
+|EasyOCR
+|Supports 80+ languages, GPU acceleration, Python-based implementation
+|https://github.com/JaidedAI/EasyOCR
+
+|PaddleOCR
+|High accuracy with layout analysis, handwriting support, production-ready
+|https://github.com/PaddlePaddle/PaddleOCR[PaddleOCR official documentation]
+
+|docTR
+|Deep learning-based, modular architecture, supports both PyTorch and TensorFlow
+|https://www.mindee.com/platform/doctr
+
+|TrOCR
+|Transformer-based architecture, excels at handwritten text recognition
+|https://www.microsoft.com/en-us/research/publication/trocr
+|===
+
+To help you choose the right approach for your use case, <<table_ocr_vs_multimodal_decision_guide>> explains the decision criteria based on document characteristics, volume, and budget constraints:
+
+[[table_ocr_vs_multimodal_decision_guide]]
+.Decision Guide: OCR vs. Multimodal Models
+[cols="2,2,3"]
+|===
+|Document Type |Volume |Recommended Approach
+
+|Simple text-only PDFs
+Plain documents, contracts, books, articles
+|< 1,000 docs/month
+|OCR (Tesseract)
+Fast, free, runs locally
+
+|Simple text-only PDFs
+Plain documents, contracts, books, articles
+|> 10,000 docs/month
+|OCR (Tesseract or EasyOCR)
+Cost effective at scale
+
+|Mixed content
+Text + tables + images
+|< 500 docs/month
+|Multimodal Models (GPT-5 Mini, Claude Haiku, Gemini Flash)
+Single-pass processing, robust results
+
+|Mixed content
+Text + tables + images
+|> 5,000 docs/month
+|Hybrid Approach
+Classify documents first, use OCR for simple pages, multimodal for complex pages
+
+|Complex layouts
+Technical diagrams, handwritten notes, mixed fonts
+|Any volume
+|Multimodal Models (GPT-5.2, Claude Sonnet, Gemini Pro)
+Superior accuracy on complex documents
+
+|Sensitive data
+Cannot leave infrastructure
+|Any volume
+|OCR (open-source: Tesseract, PaddleOCR, EasyOCR)
+Full control, local deployment
+|===
+
+
+[TIP]
+====
+For regulated or sensitive data, avoid external APIs. Run ingestion on your own infrastructure and lock down access to raw files and extracted text (least privilege, auditing, encryption).
+
+Start with local OCR (Tesseract, EasyOCR, PaddleOCR). If you need layout-aware extraction (tables/forms/reading order), use a locally hosted vision or document model like Llama 3 Vision or Qwen VL.
+====
+
+
+==== See Also
+
+* https://tesseract-ocr.github.io/tessdoc/[Tesseract OCR documentation] covers installation, language support, and parameter tuning for accuracy.
+* https://pypi.org/project/pytesseract/[pytesseract package documentation] provides Python integration examples and API reference.
+* https://cloud.google.com/vision/docs/ocr[Google Cloud Vision OCR] handles complex layouts and handwriting with managed infrastructure.
+
+[[extracting_text_from_images_using_multi_modalmodels_chapter]]
+=== Extracting Text from Images Using Multimodal Models
+
+==== Problem
+
+You want to extract text, tables, and code listings from images without losing the original formatting.
+
+==== Solution
+
+Attach the image to a prompt and instruct the model to extract the content. You can instruct the model to return the text in Markdown format that reflects the original structure, including headings, bullet lists, tables, or code blocks.
+
+[TIP]
+====
+Save important metadata like image path, timestamps, and any IDs along with the source document.
+====
+
+<<image-12-extracting-text-from-images-multimodal-models-example>> shows the process of using multimodal models to extract text from images.
+
+[[image-12-extracting-text-from-images-multimodal-models-example]]
+.How to extract text from images using multimodal models
+image::img/ch03_images/Extract-text-from-images-multimodal-models-example.png[Using multimodal models to extract text from images]
+
+The following code defines a sample prompt and sends it to one of OpenAI's multimodal models along with an image of a financial reporting slide.
+
+[source,python,indent=0]
+----
+import os
+import base64
+from openai import OpenAI
+
+png_file_path = "../datasets/images/example_finance_reporting_slide.png"
+
+# initialize the OpenAI client
+client = OpenAI()
+
+with open(png_file_path, "rb") as image_file:
+    base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+
+    prompt = (
+        "Extract the text from the image attached. Make sure to only "
+        "extract only the text. If there is no text in the image, "
+        "please return with the sentence 'No text found in the image."
+    )
+
+    response = client.chat.completions.create(
+        model="gpt-5.2",  # define the model to use
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": (
+                                f"data:image/jpeg;base64,"
+                                f"{base64_image}"
+                            ),
+                        },
+                    },
+                ],
+            }
+        ],
+        max_tokens=500,
+    )
+
+    content = response.choices[0].message.content
+----
+
+The variable `content` contains the extracted text from the image, preserving the original structure as closely as possible.
+
+==== Discussion
+
+Multimodal models extract text while preserving document structure. They can output Markdown that reflects the original formatting including headings, bullet lists, tables, and code blocks. This structural preservation improves downstream processing compared to raw text extraction.
+
+Cost scales linearly with document volume. Efficient multimodal models (GPT-5 Mini, Claude Haiku 4.5, Gemini 2.5 Flash) balance cost and quality for most extraction tasks. Flagship models (GPT-5.2, Claude Sonnet 4.5, Gemini 3 Pro) provide better accuracy on complex documents but at higher per-page costs.
+
+When to use each tier:
+
+* Efficient models: Straightforward documents with clear text and simple layouts, high-volume processing where cost matters
+* Flagship models: Dense tables, technical diagrams, mixed content types, or critical documents where extraction errors have significant consequences (financial statements, legal contracts, medical records)
+* Classical OCR: Plain text documents at very high volume where cost sensitivity outweighs the benefits of structural understanding
+
+Multimodal models may hallucinate numbers or skip content in low-quality scans. Improve accuracy by providing specific extraction instructions ("extract product name, price, and weight from each row") or using multiple models for cross-validation on critical documents.
+
+==== See Also
+
+* https://platform.openai.com/docs/guides/images-vision[OpenAI vision documentation] covers sending images to GPT models with code examples.
+* https://docs.anthropic.com/en/docs/build-with-claude/vision[Anthropic vision documentation] explains Claude's image analysis capabilities and parameters.
+* https://ai.google.dev/gemini-api/docs/vision[Gemini vision API documentation] provides image understanding examples and model selection guidance.
+
+[[generating_text_summaries_for_images_using_multimodal_models_chapter]]
+=== Generating Text Description for Images Using Multimodal Models
+
+==== Problem
+
+You want to extract insights from images by generating detailed textual descriptions.
+
+==== Solution
+
+<<image_generating_text_summaries_for_images_using_multimodal_models>> shows the process and a sample prompt you can use. The prompt instructs the model to generate a detailed description of an image.
+
+You can further enrich the resulting metadata with:
+
+- the file path of the original document
+- the page where the image was found
+- a link to the text sections surrounding the image
+
+[[image_generating_text_summaries_for_images_using_multimodal_models]]
+.Generating text summaries for images using multimodal models.
+image::img/ch03_images/image-to-text-example.png[Diagram showing multimodal model generating detailed text descriptions for images, with example prompt asking the model to describe an image for visually impaired users]
+
+This recipe uses the multimodal model GPT-5 Mini to analyze images. Alternatively, you can use Anthropic's Claude Haiku 4.5, Google's Gemini 2.5 Flash, or other multimodal models from xAI, Mistral, or DeepSeek.
+
+The following code loads an example image of Vietnam's capital city (Hanoi) and instructs the model accordingly.
+
+[source,python,indent=0]
+----
+import os
+import base64
+from openai import OpenAI
+
+image_path = "../datasets/images/vietnam.png"
+
+# initialize the OpenAI client
+client = OpenAI()
+
+with open(image_path, "rb") as image_file:
+    base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+
+    prompt = (
+        "You are an assistant for visually impaired users. "
+        "Describe the image in detail."
+    )
+
+    response = client.chat.completions.create(
+        model="gpt-5-mini",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": (
+                                f"data:image/jpeg;base64,"
+                                f"{base64_image}"
+                            ),
+                        },
+                    },
+                ],
+            }
+        ],
+        max_tokens=150,
+    )
+
+    content = response.choices[0].message.content
+----
+
+The output of the model is a detailed description of the image, which can be stored as metadata alongside the image for future reference.
+
+==== Discussion
+
+Multimodal models adapt their output to image content. They describe emotions in portraits, explain structural relationships in diagrams, summarize data trends in charts, and extract text from documents. <<image_sample_types_of_slides>> illustrates this content-aware flexibility when processing mixed visual content where you cannot predict image types in advance.
+
+[[image_sample_types_of_slides]]
+.Extracting text from different image types
+image::img/ch03_images/kind-of-slides.png[With multimodal models you can describe any kind of PowerPoint slide or process chart]
+
+This recipe converts images to text descriptions first, then generates embeddings using text embedding models. An alternative approach uses multimodal embedding models like OpenAI's CLIP that process images and text directly in the same vector space. CLIP enables direct image-to-image search and cross-modal retrieval (text query matching images, or vice versa) without intermediate text conversion. See <<recipe_clip>> for implementation details.
+
+==== See Also
+
+* https://github.com/openai/CLIP[OpenAI CLIP repository] for official implementation of Contrastive Language-Image Pretraining for multimodal embeddings
+* https://langchain-opentutorial.gitbook.io/langchain-opentutorial/19-cookbook/06-multimodal/10-geminimultimodalrag[LangChain multimodal RAG tutorial] demonstrates combining text and image embeddings with code examples
+* https://docs.llamaindex.ai/en/stable/examples/multi_modal/multi_modal_retrieval/[LlamaIndex multimodal retrieval guide] provides patterns for indexing and retrieving multimodal content
+
+[[generating_text_summaries_for_tables_using_multimodal_models_chapter]]
+=== Generating Text Summaries for Embedded Tables Using Multimodal Models
+
+==== Problem
+
+You want to load documents with embedded tables and preprocess them for your RAG system by converting the tables into text summaries.
+
+==== Solution
+
+<<image_generating_text_summaries_for_tables_using_multimodal_models>> shows the process steps to prepare the tables:
+
+. Identify and extract tables from the document
+. Build a proper prompt by combining the table with instructions
+. Send the prompt to the LLM to generate a text summary
+
+The summary is then stored together with important metadata. If the table comes from a PDF, metadata might include the page number where the table appears and the file path to the original PDF.
+
+[[image_generating_text_summaries_for_tables_using_multimodal_models]]
+.How to generate text summaries for tables using multimodal models.
+image::img/ch03_images/embedded-tables-to-text-example.png[Diagram showing multimodal model converting table data into natural language summaries of key insights for better embedding and retrieval]
+
+The code below uses the unstructured library to break a PDF into text, tables, and images. For interpreting tables, this recipe again uses OpenAI models.
+
+[source, bash]
+----
+pip install unstructured openai pandas
+----
+
+The following code snippet loads the PDF, partitions it, and stores all tables in a new list called tables.
+
+[source,python,indent=0]
+----
+import os
+from unstructured.partition.pdf import partition_pdf
+
+pdf_file_path = "../datasets/pdf_files/adult_data_article.pdf"
+
+tables = []
+texts = []
+
+# partition the PDF file into its elements
+raw_pdf_elements = partition_pdf(
+    filename=pdf_file_path,
+    strategy="hi_res",
+)
+
+for element in raw_pdf_elements:
+    if "unstructured.documents.elements.Table" in str(type(element)):
+        tables.append(str(element))
+
+----
+
+The following step is summarizing the table content using a suitable LLM.
+
+[source,python,indent=0]
+----
+from openai import OpenAI
+import pandas as pd
+
+
+def summarize_tables(row):
+    summary_prompt = (
+        f"You are an assistant tasked with summarizing tables. "
+        f"Give a concise summary of the table. "
+        f"Table chunk: {row.table}"
+    )
+
+    # Initialize the OpenAI API client and generate table summary
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    response = client.chat.completions.create(
+        model="gpt-5-mini",
+        messages=[{"role": "user", "content": summary_prompt}],
+        temperature=0.7,
+        max_tokens=150,
+    )
+
+    row["table_summary"] = response.choices[0].message.content
+
+    return row
+
+
+# create a pandas dataframe from the tables
+tables_df = pd.DataFrame(tables, columns=["table"])
+
+# add a column to the dataframe to store the summaries
+tables_df = tables_df.apply(summarize_tables, axis=1)
+----
+
+The result is a data frame containing the summaries and all metadata fields.
+
+==== Discussion
+
+Converting tables to text summaries captures semantic meaning that raw table strings miss. Consider a quarterly revenue table. Embedding the raw string "Q1: 100, Q2: 120, Q3: 140" only captures numbers without the insight that these figures represent 20% quarter-over-quarter growth.
+
+A text summary like "Revenue increased by 20% each quarter, rising from $100M in Q1 to $140M in Q3, indicating strong growth momentum" captures the pattern, trend, and business implication. When a user asks "Which companies show consistent revenue growth?", the summary's embedding matches semantically while the raw table string does not.
+
+This approach works well when:
+
+* Tables contain numeric data where patterns and trends matter (financial results, performance metrics, time series)
+* Users ask analytical questions rather than looking up specific cells
+* The table insight can be expressed in 2-3 sentences
+
+Avoid this approach when:
+
+* Tables are primarily lookup data (employee directories, product specifications) where row-to-text conversion suffices
+* Tables are large reference datasets better suited for Text-to-SQL
+* Users need exact cell values rather than summarized insights
+
+The tradeoff is accuracy versus interpretability. Raw table text preserves exact values but lacks context. Summaries provide context but may miss details or introduce interpretation errors.
+
+==== See Also
+
+* https://cookbook.openai.com/examples/parse_pdf_docs_for_rag[OpenAI PDF parsing guide] shows using GPT-5.2 to identify and extract tables and diagrams from PDFs.
+* https://cookbook.openai.com/examples/vector_databases/pinecone/using_vision_modality_for_rag_with_pinecone[Pinecone multimodal RAG example] demonstrates letting the model classify content types and extract information.
+
+[[parsing-pdfs-with-multimodal-content-chapter]]
+=== Parsing PDFs with Multimodal Content
+
+==== Problem
+
+You want to load and preprocess a PDF that contains text, listings, tables, and images so you can ingest it into your RAG system.
+
+==== Solution
+
+<<extracting-text-from-multimodal-pdfs-image>> shows the end-to-end process for loading a PDF with multimodal content. It requires a multi-step pipeline that partitions the PDF into its different element types and processes each type differently:
+
+. Load the raw document and partition it into text, images, and tables.
+. Use a multimodal model (for example, OpenAI GPT-5.2, Anthropic Claude Sonnet 4.5, or Google Gemini 2.5 Flash) to generate text summaries for images and tables.
+. Generate text embeddings for text chunks, image summaries, and table summaries.
+
+Then add the embeddings to the vector store and store metadata such as the original file path and page numbers.
+
+[[extracting-text-from-multimodal-pdfs-image]]
+.How to load and process multimodal PDFs.
+image::img/ch03_images/parsing-pdfs-with-multimodal-content.png[Multimodal PDF processing pipeline: partition document into text, images, and tables, generate summaries using multimodal models, create embeddings, and store in vector store with metadata]
+
+The code below uses the `unstructured` library to split the PDF into text, images, and tables. The `unstructured` library relies on the Poppler utilities for PDF processing, especially for tasks such as extracting images and reading page-level information.
+
+How you install Poppler depends on your operating system:
+
+- Windows: Download the latest release ZIP from the Poppler for Windows, extract it to a directory on your machine, and add that directory to your PATH environment variable. You find some useful links in the https://pdf2image.readthedocs.io/en/latest/installation.html[PyPDF2 docs].
+- Ubuntu/Debian: Install Poppler with:
+
+[source, bash]
+----
+sudo apt-get install poppler-utils
+----
+
+To handle image-based documents such as scanned PDFs, unstructured uses an OCR engine. In the code snippet below, it uses Tesseract, so make sure, you have Tesseract installed as well.
+
+The following code partitions the PDF into its elements. Each element has a category such as narrative text, titles, images, or tables.
+
+[source,python,indent=0]
+----
+from unstructured.partition.pdf import partition_pdf
+import os
+
+# set the OCR agent to tesseract
+os.environ["OCR_AGENT"] = "tesseract"
+
+pdf_file_path = "../datasets/pdf_files/adult_data_article.pdf"
+image_output_dir = "../datasets/extracted_content_from_pdfs/images"
+
+# create output directory if it doesn't exist
+os.makedirs(image_output_dir, exist_ok=True)
+
+# get elements using the function extract_pdf_elements
+raw_pdf_elements = partition_pdf(
+    filename=pdf_file_path,
+    extract_images_in_pdf=True,
+    extract_image_block_types=["Image", "Table"],
+    extract_image_block_to_payload=False,
+    extract_image_block_output_dir=image_output_dir,
+)
+
+# categorize elements by type
+tables = []
+texts = []
+titles = []
+
+# fill the just created lists with the elements
+for element in raw_pdf_elements:
+    element_type = str(type(element))
+    if "unstructured.documents.elements.Table" in element_type:
+        tables.append(str(element))
+    elif "unstructured.documents.elements.NarrativeText" in element_type:
+        texts.append(str(element))
+    elif "unstructured.documents.elements.Title" in element_type:
+        titles.append(str(element))
+----
+
+The result is three lists, one per element type. Each element is then prepared further. <<table_processing_steps_for_pdf_elements>> shows some popular processing steps for each element type.
+
+[[table_processing_steps_for_pdf_elements]]
+.Processing Steps for Different PDF Element Types
+[cols="1,3"]
+|===
+|Element Type |Recommended Processing Steps
+
+|Text and Titles
+|Split into smaller text chunks suitable for embedding models. Use techniques like recursive, semantic, and agentic chunking.
+
+|Images
+|Extract text using OCR engines or multimodal models. Alternatively, generate text summaries for images using multimodal models.
+
+|Tables
+|Load the plain text from the table or, preferably, extract key insights using multimodal models.
+|===
+
+[NOTE]
+====
+This recipe shows how to partition PDFs into elements. For the complete processing implementation (generating summaries, creating embeddings, and storing in vector stores), see <<chapter_extracting_text_from_images_using_multimodal_model>> for image processing and <<chapter_generating_text_summaries_for_embedded_tables_using_multimodal_models>> for table processing.
+====
+
+==== Discussion
+
+PDFs frequently contain mixed content: narrative text, embedded images, data tables, and diagrams. Text embedding models process only text, making visual elements invisible to semantic search unless converted first.
+
+The solution is modal conversion. Multimodal models analyze images and tables, generating text descriptions that capture their content and meaning. These descriptions are then embedded as text, making visual content discoverable through semantic search.
+
+This enables comprehensive retrieval. A user query about "quarterly sales trends" can match both narrative paragraphs discussing growth and embedded tables showing quarterly figures, because both exist as searchable text embeddings.
+
+When to use this approach:
+
+* Documents contain critical information in visual formats (charts, diagrams, tables)
+* Users ask questions that span text and visual content
+* You need to preserve document fidelity rather than just extracting plain text
+
+Skip this complexity when:
+
+* Documents are text-only or visual elements are decorative rather than informative
+* Visual content is already described in surrounding text (the table summary appears in the paragraph above the table)
+* You can use specialized parsing that preserves table structure for Text-to-SQL rather than converting to text summaries
+
+==== See Also
+
+* https://developers.openai.com/cookbook/examples/parse_pdf_docs_for_rag/[OpenAI PDF parsing guide] demonstrates extracting text, tables, and images from complex PDFs.
+* https://langchain-opentutorial.gitbook.io/langchain-opentutorial/19-cookbook/06-multimodal/10-geminimultimodalrag[LangChain multimodal RAG tutorial] shows end-to-end implementation with code examples.
+
+[[loading_video_files_chapter]]
+=== Loading Videos Using Speech-to-Text and Multimodal Models
+
+==== Problem
+
+You want to load videos into your RAG system.
+
+==== Solution
+
+Split a video into its modalities and components, such as the audio track and individual frames, and process each component separately.
+
+<<loading_video_files_image>> illustrates the steps needed:
+
+. Partition the video into sections. You can use fixed-length segments (for example, 10-second snippets) or detect logical breakpoints by analyzing the visuals and spoken content.
+. For each breakpoint, assign a label, save the corresponding frame as an image, and create a text summary of that image.
+. Extract the audio between two breakpoints, save it as an MP3 file, and transcribe it.
+. Use text embedding models to create embeddings for both the transcribed audio sections and the image summaries.
+. Store the embeddings in your vector store.
+
+[[loading_video_files_image]]
+.How to load videos into a RAG system by breaking them into their elements and processing them using speech-to-text and multimodal models.
+image::img/ch03_images/load_text_from_videos.png[Loading Text from Videos]
+
+The code in this recipe uses
+
+* the moviepy library to load the video, extract frames, and save audio clips between breakpoints.
+* multimodal models to process the extracted images
+* speech-to-text models to transcribe audio sections.
+
+Both are provided by OpenAI. Install the required dependencies using the following command:
+
+[source, bash]
+----
+pip install moviepy pandas
+----
+
+Start by partitioning the video and saving timestamps for each segment. You can pick timestamps at fixed intervals or choose the best split points manually.
+
+The sample video used in this recipe is a beginner data science tutorial. The speaker presents a slide deck and typically spends about 30 seconds per slide before moving on.
+
+<<code-9-define-timestamps-for-video-segments>> shows how to extract frames from the loaded video and save them as images.
+
+[[code-9-define-timestamps-for-video-segments]]
+.How to extract frames from the loaded video and save them as images
+image::img/ch03_images/save_frame_from_video_to_folder.png[Diagram showing video frames being extracted at specific timestamps and saved as PNG image files to a designated output folder]
+
+The following code partitions the video into 10-second segments and saves extracted frames as images.
+
+[source,python,indent=0]
+----
+import os
+import pandas as pd
+
+from moviepy import VideoFileClip, TextClip, CompositeVideoClip
+
+video_file_path = "../datasets/videos/learn-data-science-tutorial.mp4"
+image_output_folder = "../datasets/videos/video_extracted_images"
+
+# create output folder if it doesn't exist
+os.makedirs(image_output_folder, exist_ok=True)
+
+clip = VideoFileClip(video_file_path)
+
+# create a list of timestamps from which to extract a frame
+time_step = 10  # time in seconds
+timestamps = list(range(0, int(clip.duration) - time_step, time_step))
+
+# for each timestamp extract a frame
+for timestamp in timestamps:
+    frame_image_path = os.path.join(
+        image_output_folder, f"frame_{timestamp}.png"
+    )
+    clip.save_frame(frame_image_path, t=timestamp)
+----
+
+The result is a list of images, each representing a frame from the video (see <<image_screenshot_frames_from_video>>).
+
+[[image_screenshot_frames_from_video]]
+.Screenshot: Frames extracted from the video
+image::img/ch03_images/screenshot_frames_from_video.png[Screenshot showing multiple PNG image files extracted from video at regular time intervals, displaying consecutive frames from a data science tutorial]
+
+Next, decide how to process the saved images. The most common approach is to use multimodal models to interpret what appears in each image.
+
+The next step extracts the audio between each pair of timestamps and saves it as an MP3 file. <<image-audio-track-save>> shows how to save audio sequences from the video to mp3 files.
+
+[[image-audio-track-save]]
+.How to save audio sequences from the video to mp3 files.
+image::img/ch03_images/load_audio_from_video.png[Load Audio from Video]
+
+The following code iterates over the saved timestamps and writes the audio between two timestamps to an MP3 file (for example, using a clip/subclip function from a video library).
+
+[source,python,indent=0]
+----
+# for each timestamp extract the audio sequence and save it to a .mp3 file
+audio_output_folder = "../datasets/videos/video_extracted_audio"
+
+# create output folder if it doesn't exist
+os.makedirs(audio_output_folder, exist_ok=True)
+
+for timestamp in timestamps:
+    audio_clip = clip.subclip(timestamp, timestamp + time_step).audio
+    output_audio_path = os.path.join(
+        audio_output_folder, f"audio_{timestamp}.mp3"
+    )
+    audio_clip.write_audiofile(output_audio_path)
+----
+
+Next, transcribe each audio segment using a speech-to-text model. See <<loading_audio_files_by_using_speech_to_text_models_chapter>> for details.
+
+After that, each video segment yields at least two text snippets, one from the audio transcription and one derived from the first frame of the segment (for example, via image understanding).
+
+==== Discussion
+
+Video segmentation strategy depends on content structure and retrieval needs. Choose based on your video type:
+
+* Fixed intervals (10-30 seconds): Lectures, presentations, tutorials with consistent pacing. Simple to implement, works well when content changes gradually.
+* Scene detection (visual analysis): Movies, documentaries, training videos with clear visual transitions. Detects cuts, fades, and major visual changes automatically.
+* Transcript-based segmentation: Meetings, interviews, podcasts where topic shifts occur mid-scene. Analyze transcripts for topic boundaries using text segmentation techniques.
+* Chapter markers (when available): Educational content, webinars with pre-defined sections. Most accurate when present, but rarely available.
+
+The dual-modality approach (frames + audio) captures complementary information. Slide presentations benefit more from frame analysis since slides contain key information. Podcasts and interviews depend primarily on audio transcription. Action-heavy videos need dense frame sampling to capture visual events.
+
+Segment metadata enables precise source attribution. Users get not just answers but exact video timestamps. A question like "How do I configure authentication?" returns both the answer and a deep link to the relevant video moment, significantly improving user experience over text-only responses.
+
+==== See Also
+
+* https://pypi.org/project/moviepy/[MoviePy documentation] for Python library supporting video editing, frame extraction, and audio processing
+* https://platform.openai.com/docs/guides/speech-to-text[OpenAI Whisper API guide] provides official documentation for audio transcription and speech recognition
+* https://www.llamaindex.ai/blog/multimodal-rag-for-advanced-video-processing-with-llamaindex-lancedb-33be4804822e[LlamaIndex video processing guide] demonstrates frame extraction, audio transcription, and CLIP embeddings for multimodal search
+
+
+

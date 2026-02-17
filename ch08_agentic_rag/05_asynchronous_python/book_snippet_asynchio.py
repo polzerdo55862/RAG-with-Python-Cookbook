@@ -1,5 +1,4 @@
 import asyncio
-from http import client
 import openai
 import base64
 from pdf2image import convert_from_path
@@ -84,6 +83,7 @@ async def main():
                 ],
             }
         ],
+        max_tokens=1000,
     )
 
     merged_json = response.choices[0].message.content
