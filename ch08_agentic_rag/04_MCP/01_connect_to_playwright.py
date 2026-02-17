@@ -1,4 +1,3 @@
-# tag::connect_to_playwright[]
 import asyncio
 from agents.mcp import MCPServerStdio
 
@@ -20,4 +19,3 @@ async def connect_to_playwright():
 # Run the async function
 if __name__ == "__main__":
     asyncio.run(connect_to_playwright())
-# end::connect_to_playwright[]

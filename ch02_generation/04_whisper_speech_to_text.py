@@ -5,7 +5,6 @@ Quick example on how to use OpenAI's Whisper model for Speech-to-Text
 pip install openai==2.8.0
 """
 
-# tag::code_example[]
 import httpx
 from openai import OpenAI
 
@@ -21,4 +20,3 @@ with open(
     )
 
 print(transcript.text)
-# end::code_example[]

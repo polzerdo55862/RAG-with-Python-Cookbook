@@ -2,7 +2,6 @@
 pip install openai
 """
 
-# tag::code_example[]
 import os
 from openai import OpenAI
 
@@ -17,4 +16,3 @@ resp = client.chat.completions.create(
 )
 
 print(resp.choices[0].message.content)
-# end::code_example[]

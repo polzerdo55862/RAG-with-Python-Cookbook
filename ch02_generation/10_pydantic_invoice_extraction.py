@@ -2,7 +2,6 @@
 pip install openai pydantic
 """
 
-# tag::code_example[]
 from pydantic import BaseModel
 from openai import OpenAI
 
@@ -29,4 +28,3 @@ person = response.choices[0].message.parsed
 print(person.first_name)
 print(person.email)
 print(person.age)
-# end::code_example[]

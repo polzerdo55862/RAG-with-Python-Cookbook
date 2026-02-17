@@ -1,4 +1,3 @@
-# tag::pydantic_structured_output_basic_imports[]
 from pydantic import BaseModel
 from openai import OpenAI
 
@@ -10,9 +9,7 @@ class Person(BaseModel):
     age: int
 
 
-# end::pydantic_structured_output_basic_imports[]
 
-# tag::pydantic_structured_output_basic[]
 client = OpenAI()
 
 text = "My name is Sarah Johnson, I'm 34 years old. Email me at sarah.j@example.com"
@@ -30,4 +27,3 @@ person = response.choices[0].message.parsed
 print(person.first_name)
 print(person.email)
 print(person.age)
-# end::pydantic_structured_output_basic[]
