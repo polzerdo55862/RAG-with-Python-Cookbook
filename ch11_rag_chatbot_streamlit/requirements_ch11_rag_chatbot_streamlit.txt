@@ -85,12 +85,12 @@ packaging==25.0
 pandas==2.3.0
 parso==0.8.4
 pdf2image==1.17.0
-pillow==11.2.1
+pillow==12.1.1
 platformdirs==4.3.8
 plotly==6.2.0
 posthog==5.4.0
 prompt_toolkit==3.0.51
-protobuf==5.29.5
+protobuf==5.29.6
 psutil==7.0.0
 pure_eval==0.2.3
 pyarrow==20.0.0
@@ -138,7 +138,7 @@ typer==0.16.0
 typing-inspection==0.4.1
 typing_extensions==4.14.0
 tzdata==2025.2
-urllib3==2.5.0
+urllib3==2.6.3
 uvicorn==0.35.0
 vanna==0.5.0
 watchdog==6.0.0
