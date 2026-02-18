@@ -1,0 +1,310 @@
+{
+  "total": 16,
+  "found": 16,
+  "missing": 0,
+  "syntax_ok": 16,
+  "syntax_error": 0,
+  "notebooks": {
+    "ch01_RAG_intro/rag_basics.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch01_RAG_intro/requirements.txt",
+      "imports": [
+        "chromadb",
+        "openai",
+        "pathlib"
+      ],
+      "api_keys": [],
+      "errors": []
+    },
+    "ch02_generation/generation.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch02_generation/requirements_ch02_generation.txt",
+      "imports": [
+        "anthropic",
+        "datetime",
+        "google",
+        "httpx",
+        "openai",
+        "os",
+        "pydantic",
+        "typing"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY"
+      ],
+      "errors": []
+    },
+    "ch03_loading_data/loading_data_to_RAG.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch03_loading_data/requirements_loading_data.txt",
+      "imports": [
+        "PIL",
+        "PyPDF2",
+        "base64",
+        "docx",
+        "google",
+        "io",
+        "moviepy",
+        "openai",
+        "os",
+        "pandas",
+        "pdf2image",
+        "pytesseract",
+        "requests",
+        "sqlalchemy",
+        "unstructured"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY"
+      ],
+      "errors": []
+    },
+    "ch04_data_preparation_chunking_data/chunking_data.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch04_data_preparation_chunking_data/requirements_data_preparation_chunking_data.txt",
+      "imports": [
+        "PyPDF2",
+        "google",
+        "langchain",
+        "langchain_experimental",
+        "langchain_openai",
+        "langchain_text_splitters",
+        "openai",
+        "os",
+        "pydantic",
+        "re",
+        "textwrap",
+        "typing"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY"
+      ],
+      "errors": []
+    },
+    "ch05_text_embedding/text_embeddings.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch05_text_embedding/requirements_ch05_text_embedding.txt",
+      "imports": [
+        "PIL",
+        "PyPDF2",
+        "google",
+        "langchain_openai",
+        "langchain_text_splitters",
+        "matplotlib",
+        "numpy",
+        "openai",
+        "os",
+        "pandas",
+        "rank_bm25",
+        "sentence_transformers",
+        "sklearn",
+        "torch",
+        "transformers"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY"
+      ],
+      "errors": []
+    },
+    "ch06_similarity_search_vector_databases/vector_databases.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch06_similarity_search_vector_databases/requirements_ch06_similarity_search_vector_databases.txt",
+      "imports": [
+        "chromadb",
+        "faiss",
+        "google",
+        "numpy",
+        "openai",
+        "os",
+        "pandas",
+        "psycopg2"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY"
+      ],
+      "errors": []
+    },
+    "ch07_retrieval/retrieval_techniques.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch07_retrieval/requirements_retrieval.txt",
+      "imports": [
+        "google",
+        "openai",
+        "os",
+        "pydantic",
+        "typing"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY"
+      ],
+      "errors": []
+    },
+    "ch08_agentic_rag/8.4_building_agentic_system_function_calling/building_agents_without_framework.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch08_agentic_rag/requirements_ch08_agentic_rag.txt",
+      "imports": [
+        "json",
+        "openai"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY"
+      ],
+      "errors": []
+    },
+    "ch08_agentic_rag/8.6_sales_negotiation_agent_openai_sdk/building_agents_with_openai_sdk.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch08_agentic_rag/requirements_ch08_agentic_rag.txt",
+      "imports": [
+        "agents",
+        "asyncio",
+        "chromadb",
+        "google",
+        "os",
+        "shutil"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY"
+      ],
+      "errors": []
+    },
+    "ch08_agentic_rag/8.8_agentic_system_langgraph/building_agents_using_langgraph.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch08_agentic_rag/requirements_ch08_agentic_rag.txt",
+      "imports": [
+        "IPython",
+        "datetime",
+        "geopy",
+        "langchain_core",
+        "langchain_openai",
+        "langgraph",
+        "pydantic",
+        "requests",
+        "typing"
+      ],
+      "api_keys": [],
+      "errors": []
+    },
+    "ch09_graph_rag/9.1_basic_sla_graph.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch09_graph_rag/requirements_ch09_graph_rag.txt",
+      "imports": [
+        "__future__",
+        "argparse",
+        "dataclasses",
+        "dotenv",
+        "neo4j",
+        "os",
+        "re",
+        "typing"
+      ],
+      "api_keys": [
+        "NEO4J_URI",
+        "NEO4J_PASSWORD"
+      ],
+      "errors": []
+    },
+    "ch09_graph_rag/9.2_enrich_company_data.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch09_graph_rag/requirements_ch09_graph_rag.txt",
+      "imports": [
+        "__future__",
+        "dotenv",
+        "neo4j",
+        "os",
+        "pandas",
+        "typing"
+      ],
+      "api_keys": [
+        "NEO4J_URI",
+        "NEO4J_PASSWORD"
+      ],
+      "errors": []
+    },
+    "ch09_graph_rag/9.3_cypher_queries.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch09_graph_rag/requirements_ch09_graph_rag.txt",
+      "imports": [
+        "__future__",
+        "dotenv",
+        "neo4j",
+        "os",
+        "typing"
+      ],
+      "api_keys": [
+        "NEO4J_URI",
+        "NEO4J_PASSWORD"
+      ],
+      "errors": []
+    },
+    "ch09_graph_rag/9.4_embeddings_vector_search.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch09_graph_rag/requirements_ch09_graph_rag.txt",
+      "imports": [
+        "__future__",
+        "dotenv",
+        "neo4j",
+        "openai",
+        "os",
+        "typing"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY",
+        "NEO4J_URI",
+        "NEO4J_PASSWORD"
+      ],
+      "errors": []
+    },
+    "ch09_graph_rag/9.5_useful_extensions.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch09_graph_rag/requirements_ch09_graph_rag.txt",
+      "imports": [
+        "__future__",
+        "dotenv",
+        "neo4j",
+        "openai",
+        "os"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY",
+        "NEO4J_URI",
+        "NEO4J_PASSWORD"
+      ],
+      "errors": []
+    },
+    "ch10_rag_evaluation/rag_evaluation_techniques.ipynb": {
+      "exists": true,
+      "syntax_ok": true,
+      "requirements_file": "ch10_rag_evaluation/requirements_ch10_rag_evaluation.txt",
+      "imports": [
+        "google",
+        "numpy",
+        "openai",
+        "os",
+        "pandas",
+        "pydantic",
+        "random",
+        "textwrap"
+      ],
+      "api_keys": [
+        "OPENAI_API_KEY"
+      ],
+      "errors": []
+    }
+  }
+}
