@@ -1,4 +1,20 @@
-# RAG-with-Python-Cookbook
+# RAG with Python Cookbook
+
+Hey there! 👋
+
+Back in 2017, Google researchers dropped "Attention Is All You Need" and introduced the Transformer architecture—a breakthrough that completely reshaped modern AI. Since then, large language models have gotten really good at writing text, answering questions, and even generating working code. Pretty cool, right?
+
+But here's the thing: these models are powerful yet isolated. They can hallucinate facts, lack access to current information, and can't work with your private company data. That's where **Retrieval-Augmented Generation (RAG)** comes in. RAG bridges this gap by connecting language models to external knowledge sources, grounding their outputs in verifiable data and making them way more useful for real-world applications.
+
+This repository contains all the code snippets and practical recipes from my O'Reilly book **"RAG with Python Cookbook"**. Think of it as your hands-on guide to building production-ready RAG systems—from loading data and choosing the right embeddings to building agentic workflows and deploying apps at scale.
+
+Whether you're a developer or data scientist comfortable with Python, you'll find ready-to-use code and clear explanations to help you build RAG applications that actually work in production, not just in demos.
+
+**I'd love to hear your feedback!** Feel free to reach out, share your thoughts, or connect with me on [LinkedIn](https://www.linkedin.com/in/polzerdo55862/).
+
+---
+
+## 📚 What's Inside
 
 | Chapter | Title                                         | Colab Notebook / Source Link                                                                                                                                                                                                                                     |
 | ------: | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -29,117 +45,21 @@
 |    11.4 | ↳ Connect Your RAG App to a SQL Database     | [![View on GitHub](https://img.shields.io/badge/View%20on-GitHub-181717?logo=github)](https://github.com/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch11_rag_chatbot_streamlit/11.4_sql_database_connection/vanna_chat.py)                                              |
 |    11.5 | ↳ Deploying Your Streamlit App Using Docker and AWS | [![View on GitHub](https://img.shields.io/badge/View%20on-GitHub-181717?logo=github)](https://github.com/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch11_rag_chatbot_streamlit/11.5_deploy_docker_aws/README.md)                                              |
 
-This repository contains code snippets and practical recipes featured in the O'Reilly book **"RAG with Python Cookbook"**. The book is a comprehensive guide to Retrieval-Augmented Generation (RAG) systems, providing hands-on solutions for building, evaluating, and deploying RAG applications using Python. Each chapter focuses on a specific aspect of RAG, with ready-to-use code and explanations to help you implement state-of-the-art techniques in your own projects.
+---
 
-## What is this book about?
+## 🚀 What You'll Learn
 
-The RAG with Python Cookbook is designed for developers, data scientists, and machine learning practitioners who want to:
+The book walks you through the entire journey of building RAG systems:
 
-- Load and preprocess diverse data types for RAG systems
-- Generate and visualize text and image embeddings
-- Store and search embeddings using vector databases
-- Implement advanced retrieval techniques
-- Evaluate RAG systems with human and automated methods
-- Build and deploy RAG-powered web applications
+- **Chapters 1-2**: Set up your environment, work with prompts, and choose the right foundation models
+- **Chapters 3-4**: Load data from documents, databases, images, audio, and video, then prep it through cleaning and chunking
+- **Chapters 5-6**: Understand embeddings, choose the right models, and pick vector databases that fit your needs
+- **Chapter 7**: Level up with advanced retrieval techniques like metadata filtering, reranking, and query decomposition
+- **Chapters 8-9**: Build intelligent agentic workflows and use knowledge graphs to preserve relationships
+- **Chapters 10-11**: Evaluate your RAG systems properly and deploy production-ready apps with Streamlit, Docker, and AWS
 
-## Book Outline
+Each chapter includes practical recipes with working code that you can adapt for your own projects. Just explore the folders in this repository to dive into the notebooks and examples!
 
-Explore the folders in this repository to find code examples and notebooks for each chapter and recipe. Contributions and feedback are welcome!
+## 💬 Contributions Welcome!
 
-### Chapter 1: RAG Setup
-
-[in progress]
-
-### Chapter 2: Generation and Prompt Engineering
-
-[in progress]
-
-### Chapter 3: Loading Data
-
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch03_loading_data/loading_data_to_RAG.ipynb
-
-- 3.1 Loading Word Files in Python
-- 3.2 Loading PDF Files
-- 3.3 Loading and Handling Tabular Data from Excel Files
-- 3.4 Loading Structured Data from a PostgreSQL Database
-- 3.5 Loading Audio Files Using Speech-to-Text Models
-- 3.6 Extracting Text from Images and PDFs Using Tesseract OCR
-- 3.7 Extracting Text from Images Using Multimodal Models
-- 3.8 Generating Text Description for Images Using Multimodal Models
-- 3.9 Generating Text Summaries for Embedded Tables Using Multimodal Models
-- 3.10 Parsing PDFs with Multiple Media Content Using Unstructured and Multimodal Models
-- 3.11 Loading Videos Using Speech-to-Text and Multimodal Models
-
-### Chapter 4: Data Preparation
-
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch04_data_preparation_chunking_data/chunking_data.ipynb
-
-- 4.1 Adding Metadata to Enable Metadata Filtering
-- 4.2 Enhancing Data Quality by Replacing Abbreviations and Technical Terms
-- 4.3 Improving Search Accuracy by Embedding Hypothetical Questions
-- 4.4 Splitting Documents Using Character Splitting
-- 4.5 Splitting Documents Using Recursive Text Splitters
-- 4.6 Document Aware Splitting
-- 4.7 Splitting Text Using Semantic Aware Chunkers
-- 4.8 Splitting Text Using Agentic Chunkers
-
-### Chapter 5: Embeddings
-
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch05_text_embedding/text_embeddings.ipynb
-
-- 5.1 Mapping Linguistic Meaning of Text Chunks to Numerical Representation
-- 5.2 Visualizing Semantic Relationships by Reducing Dimensionality of Embedding Vectors
-- 5.3 Calculating Distance Between Embeddings
-- 5.4 Choosing the Right Embedding Model
-- 5.5 Generating Embeddings for Images and Text Using CLIP
-- 5.6 Performing Text Classification Using Embeddings
-- 5.7 Improving Search Results Using a Hybrid Search Approach
-
-### Chapter 6: Similarity Search
-
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch06_similarity_search_vector_databases/vector_databases.ipynb
-
-- 6.1 Choosing the Right Vector Database
-- 6.2 Storing and Searching Embeddings Using FAISS
-- 6.3 Storing and Working with Embeddings in a Chroma Vector Database
-- 6.4 Storing Embeddings in PostgreSQL Using the pgvector Extension
-- 6.5 Performing Similarity Search in PostgreSQL
-- 6.6 Speeding Up Vector Searches in PostgreSQL Using Indexing Techniques Supported by pgvector
-- 6.7 Combining Keyword and Similarity Search for Better Results (Hybrid Search) with PostgreSQL
-
-### Chapter 7: Retrieval
-
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch07_retrieval/retrieval_techniques.ipynb
-
-- 7.1 Optimizing Query Results Using Metadata Filtering in PostgreSQL
-- 7.2 Enhancing Search Results by Extending the Original Query with Generated Pseudo-Documents
-- 7.3 Improving Search Results with Multi-Query Retrieval
-- 7.4 Addressing Complex Requests by Designing a Query Routing System
-- 7.5 Increasing Search Efficiency by Designing an Auto-Merging Retriever (Parent Document Retriever)
-- 7.6 Increasing Search Results by Designing a Sentence Window Retriever
-- 7.7 Improving Search Accuracy with Reranking Methods
-- 7.8 Decomposing Complex Queries into Multiple Sub-Queries
-
-### Chapter 8: Agentic RAG
-
-[in progress]
-
-### Chapter 9: Graph RAG
-
-[in progress]
-
-### Chapter 10: Evaluation
-
-- 10.1 Evaluating RAG Systems by Humans
-- 10.2 Creating Synthetic Data for Automated Testing
-- 10.3 Evaluating the Retriever Step by Calculating Context Precision@k
-- 10.4 Evaluating RAG Systems Using LLMs as Judge and Faithfulness Metrics
-- 10.5 RAG Evaluation Using Response Relevancy
-
-### Chapter 11: RAG Chatbot
-
-- 11.1 Building a Basic Weather Assistant Chatbot
-- 11.2 Building a Multimodal PDF Analyzer App
-- 11.3 Building a Data Analyst Chatbot Using the Text-to-SQL Approach
-- 11.4 Deploying Your Streamlit App Using Docker and AWS
-- 11.5 Incorporating Effective User Feedback Functionality
+Got ideas for improvements? Found a bug? Want to share how you're using these recipes? I'd love to hear from you! Feel free to open an issue or submit a pull request. Your feedback helps make this resource better for everyone.
