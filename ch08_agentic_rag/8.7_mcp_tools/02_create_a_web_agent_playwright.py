@@ -1,4 +1,3 @@
-# tag::cookie_recipe[]
 import asyncio
 from agents.mcp import MCPServerStdio
 from agents import Agent, Runner
@@ -40,4 +39,3 @@ async def create_cookie_research_agent():
 
 if __name__ == "__main__":
     asyncio.run(create_cookie_research_agent())
-# end::cookie_recipe[]

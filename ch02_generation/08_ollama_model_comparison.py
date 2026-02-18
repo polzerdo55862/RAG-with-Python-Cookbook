@@ -2,7 +2,6 @@
 pip install ollama
 """
 
-# tag::code_example[]
 import ollama
 
 
@@ -34,4 +33,3 @@ question = "What is NLP?"
 
 answer = generate_response_with_ollama(context, question)
 print(answer)
-# end::code_example[]

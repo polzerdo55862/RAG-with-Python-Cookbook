@@ -8,7 +8,6 @@ from pathlib import Path
 import time
 
 
-# tag::asyncio_example_extract_entities[]
 async def extract_entities_from_image(image, page_num):
     start_time = time.time()
 
@@ -41,7 +40,6 @@ async def extract_entities_from_image(image, page_num):
 
     end_time = time.time()
 
-    # end::asyncio_example_extract_entities[]
 
     # write time taken to a log file
     with open("./datasets/extraction_times.log", "a") as log_file:
@@ -50,7 +48,6 @@ async def extract_entities_from_image(image, page_num):
     return response.choices[0].message.content
 
 
-# tag::asyncio_example[]
 async def main():
     # Convert PDF to images
     images = convert_from_path("./datasets/Laptop_Order_Invoice.pdf", dpi=200)
@@ -90,7 +87,6 @@ async def main():
     return merged_json
 
 
-# end::asyncio_example[]
 
 if __name__ == "__main__":
     start_overall = time.time()
