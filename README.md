@@ -1,4 +1,26 @@
-# RAG-with-Python-Cookbook
+# RAG with Python Cookbook
+
+<a href="https://www.linkedin.com/in/polzerdo/"><img src="https://img.shields.io/badge/Follow%20Dominik-blue.svg?logo=linkedin"></a>
+<a href="https://learning.oreilly.com/library/view/rag-with-python/9798341600553/"><img src="https://img.shields.io/badge/O'Reilly-Read%20Online-D40101?logo=data:image/svg%2bxml;base64,PHN2ZyB3aWR0aD0iMzQiIGhlaWdodD0iMjciIHZpZXdCb3g9IjAgMCAzNCAyNyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTMiIGN5PSIxNCIgcj0iMTEiIHN0cm9rZT0iI0Q0MDEwMSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CjxjaXJjbGUgY3g9IjMwLjUiIGN5PSIzLjUiIHI9IjMuNSIgZmlsbD0iI0Q0MDEwMSIvPgo8L3N2Zz4K"></a>
+
+Welcome! This repository contains the code for all examples in the O'Reilly book **[RAG with Python Cookbook](https://learning.oreilly.com/library/view/rag-with-python/9798341600553/)** written by [Dominik Polzer](https://www.linkedin.com/in/polzerdo/).
+
+<a href="https://learning.oreilly.com/library/view/rag-with-python/9798341600553/"><img src="rag_cookbook.png" width="50%"></a>
+
+The book is a comprehensive, hands-on guide to building Retrieval-Augmented Generation (RAG) systems with Python. It is designed for developers, data scientists, and machine learning practitioners who want to:
+
+- Load and preprocess diverse data types for RAG systems
+- Generate and visualize text and image embeddings
+- Store and search embeddings using vector databases
+- Implement advanced retrieval techniques
+- Build agentic and graph-based RAG systems
+- Evaluate RAG systems with human and automated methods
+- Build and deploy RAG-powered web applications
+
+## Table of Contents
+
+> [!TIP]
+> All notebooks can be run directly in Google Colab — no local setup required. Click the badge next to each chapter to open it.
 
 | Chapter | Title                                         | Colab Notebook / Source Link                                                                                                                                                                                                                                     |
 | ------: | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -29,34 +51,37 @@
 |    11.4 | ↳ Connect Your RAG App to a SQL Database     | [![View on GitHub](https://img.shields.io/badge/View%20on-GitHub-181717?logo=github)](https://github.com/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch11_rag_chatbot_streamlit/11.4_sql_database_connection/vanna_chat.py)                                              |
 |    11.5 | ↳ Deploying Your Streamlit App Using Docker and AWS | [![View on GitHub](https://img.shields.io/badge/View%20on-GitHub-181717?logo=github)](https://github.com/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch11_rag_chatbot_streamlit/11.5_deploy_docker_aws/README.md)                                              |
 
-This repository contains code snippets and practical recipes featured in the O'Reilly book **"RAG with Python Cookbook"**. The book is a comprehensive guide to Retrieval-Augmented Generation (RAG) systems, providing hands-on solutions for building, evaluating, and deploying RAG applications using Python. Each chapter focuses on a specific aspect of RAG, with ready-to-use code and explanations to help you implement state-of-the-art techniques in your own projects.
-
-## What is this book about?
-
-The RAG with Python Cookbook is designed for developers, data scientists, and machine learning practitioners who want to:
-
-- Load and preprocess diverse data types for RAG systems
-- Generate and visualize text and image embeddings
-- Store and search embeddings using vector databases
-- Implement advanced retrieval techniques
-- Evaluate RAG systems with human and automated methods
-- Build and deploy RAG-powered web applications
-
 ## Book Outline
 
 Explore the folders in this repository to find code examples and notebooks for each chapter and recipe. Contributions and feedback are welcome!
 
 ### Chapter 1: RAG Setup
 
-[in progress]
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch01_RAG_intro/rag_basics.ipynb)
+
+- 1.1 Splitting Documents into Chunks
+- 1.2 Generating and Storing Embeddings in ChromaDB
+- 1.3 Querying the Vector Database for Relevant Context
+- 1.4 Generating Answers Using an LLM
 
 ### Chapter 2: Generation and Prompt Engineering
 
-[in progress]
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch02_generation/generation.ipynb)
+
+- 2.1 Designing an Effective Prompt Template
+- 2.2 Calling the OpenAI Chat Completions API
+- 2.3 Integrating an LLM into a RAG Pipeline
+- 2.4 Transcribing Audio Using OpenAI Whisper
+- 2.5 Calling the Anthropic API
+- 2.6 Calling the Google Gemini API
+- 2.7 Running Local LLMs Using Ollama
+- 2.8 Comparing Outputs Across LLM Models
+- 2.9 Extracting Structured Outputs Using Pydantic
+- 2.10 Extracting Invoice Data Using Pydantic
 
 ### Chapter 3: Loading Data
 
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch03_loading_data/loading_data_to_RAG.ipynb
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch03_loading_data/loading_data_to_RAG.ipynb)
 
 - 3.1 Loading Word Files in Python
 - 3.2 Loading PDF Files
@@ -72,7 +97,7 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 
 ### Chapter 4: Data Preparation
 
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch04_data_preparation_chunking_data/chunking_data.ipynb
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch04_data_preparation_chunking_data/chunking_data.ipynb)
 
 - 4.1 Adding Metadata to Enable Metadata Filtering
 - 4.2 Enhancing Data Quality by Replacing Abbreviations and Technical Terms
@@ -85,7 +110,7 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 
 ### Chapter 5: Embeddings
 
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch05_text_embedding/text_embeddings.ipynb
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch05_text_embedding/text_embeddings.ipynb)
 
 - 5.1 Mapping Linguistic Meaning of Text Chunks to Numerical Representation
 - 5.2 Visualizing Semantic Relationships by Reducing Dimensionality of Embedding Vectors
@@ -97,7 +122,7 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 
 ### Chapter 6: Similarity Search
 
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch06_similarity_search_vector_databases/vector_databases.ipynb
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch06_similarity_search_vector_databases/vector_databases.ipynb)
 
 - 6.1 Choosing the Right Vector Database
 - 6.2 Storing and Searching Embeddings Using FAISS
@@ -109,7 +134,7 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 
 ### Chapter 7: Retrieval
 
-Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch07_retrieval/retrieval_techniques.ipynb
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch07_retrieval/retrieval_techniques.ipynb)
 
 - 7.1 Optimizing Query Results Using Metadata Filtering in PostgreSQL
 - 7.2 Enhancing Search Results by Extending the Original Query with Generated Pseudo-Documents
@@ -122,11 +147,23 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 
 ### Chapter 8: Agentic RAG
 
-[in progress]
+[![View on GitHub](https://img.shields.io/badge/View%20on-GitHub-181717?logo=github)](https://github.com/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch08_agentic_rag)
+
+- 8.4 Building an Agentic System Using Function Calling
+- 8.5 Accelerating Agents Using AsyncIO
+- 8.6 Building a Sales Negotiation Agent with OpenAI's Agents SDK
+- 8.7 Enriching Your Agent's Capabilities with MCP Tools
+- 8.8 Building an Agentic System Using LangGraph
 
 ### Chapter 9: Graph RAG
 
-[in progress]
+[![View on GitHub](https://img.shields.io/badge/View%20on-GitHub-181717?logo=github)](https://github.com/polzerdo55862/RAG-with-Python-Cookbook/blob/main/ch09_graph_rag)
+
+- 9.1 Creating Your First Neo4j Knowledge Graph
+- 9.2 Extending the Knowledge Graph with Structured Data
+- 9.3 Building Your First Cypher Query
+- 9.4 Enabling Semantic Search on a Neo4j Knowledge Graph
+- 9.5 Optimize the Knowledge Graph for RAG Systems
 
 ### Chapter 10: Evaluation
 
@@ -143,3 +180,18 @@ Colab link: https://colab.research.google.com/github/polzerdo55862/RAG-with-Pyth
 - 11.3 Building a Data Analyst Chatbot Using the Text-to-SQL Approach
 - 11.4 Deploying Your Streamlit App Using Docker and AWS
 - 11.5 Incorporating Effective User Feedback Functionality
+
+## Citation
+
+Please consider citing the book if you find it useful for your research or projects:
+
+```
+@book{rag-with-python-cookbook,
+  author    = {Dominik Polzer},
+  title     = {RAG with Python Cookbook},
+  publisher = {O'Reilly},
+  year      = {2024},
+  url       = {https://learning.oreilly.com/library/view/rag-with-python/9798341600553/},
+  github    = {https://github.com/polzerdo55862/RAG-with-Python-Cookbook}
+}
+```
