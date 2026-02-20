@@ -2,11 +2,11 @@
 
 Hey there! 👋
 
-Back in 2017, Google researchers dropped "Attention Is All You Need" and introduced the Transformer architecture—a breakthrough that completely reshaped modern AI. Since then, large language models have gotten really good at writing text, answering questions, and even generating working code. Pretty cool, right?
-
-But here's the thing: these models are powerful yet isolated. They can hallucinate facts, lack access to current information, and can't work with your private company data. That's where **Retrieval-Augmented Generation (RAG)** comes in. RAG bridges this gap by connecting language models to external knowledge sources, grounding their outputs in verifiable data and making them way more useful for real-world applications.
-
 This repository contains all the code snippets and practical recipes from my O'Reilly book **"RAG with Python Cookbook"**. Think of it as your hands-on guide to building production-ready RAG systems—from loading data and choosing the right embeddings to building agentic workflows and deploying apps at scale.
+
+<a href="https://learning.oreilly.com/library/view/rag-with-python/9798341600553/">
+  <img src="https://raw.githubusercontent.com/polzerdo55862/RAG-with-Python-Cookbook/main/rag_cookbook.png" width="350" />
+</a>
 
 Whether you're a developer or data scientist comfortable with Python, you'll find ready-to-use code and clear explanations to help you build RAG applications that actually work in production, not just in demos.
 
