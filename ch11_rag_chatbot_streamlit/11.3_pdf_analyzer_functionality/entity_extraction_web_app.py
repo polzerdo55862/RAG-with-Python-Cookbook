@@ -10,6 +10,7 @@ import re
 from pdf2image import convert_from_bytes
 import json
 
+
 def convert_pdf_to_images(pdf_file):
     # Read the PDF file and convert each page to an image
     # (PIL Image objects)
@@ -63,7 +64,6 @@ def perform_ocr_and_extract_entities(image_paths):
         extracted_text.append(full_text)
 
     return extracted_text
-
 
 
 from pydantic import BaseModel, Field
