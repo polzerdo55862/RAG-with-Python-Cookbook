@@ -1,0 +1,35 @@
+name: Test Ch01 RAG Basics Notebook
+
+on:
+  push:
+    paths:
+      - 'ch01_RAG_intro/**'
+      - '.github/workflows/test_ch01.yml'
+  pull_request:
+    paths:
+      - 'ch01_RAG_intro/**'
+      - '.github/workflows/test_ch01.yml'
+
+jobs:
+  test-notebook:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install "numpy<2" chromadb==0.4.22 pytest
+
+      - name: Run step-by-step tests
+        run: |
+          pytest ch01_RAG_intro/tests/ -v
