@@ -1,0 +1,197 @@
+= Chapter 1 - RAG Setup
+:description: Building your first RAG (Retrieval Augmented Generation) system.
+
+This chapter walks you through building a basic Retrieval Augmented Generation (RAG) system from scratch. You will chunk a text document, embed the chunks, store them in a vector database (ChromaDB), retrieve relevant passages for a query, and finally generate an answer using an LLM.
+
+Companion notebook: link:rag_basics.ipynb[rag_basics.ipynb]
+
+== Install Required Packages
+
+Install all dependencies needed for this chapter:
+
+[source,bash]
+----
+pip install "numpy<2" openai==1.12.0 chromadb==0.4.22 tiktoken==0.5.2 python-dotenv==1.0.0
+----
+
+=== Load Secrets
+
+If you run this code in Google Colab, save your OpenAI API key in the Colab Secrets panel and load it as shown below. When running locally, create a `.env` file (see `.env.example`) and call `load_dotenv()`.
+
+[source,python]
+----
+import os
+import sys
+from dotenv import load_dotenv
+
+# Check if running in Google Colab
+IN_COLAB = 'google.colab' in sys.modules
+
+if IN_COLAB:
+    try:
+        from google.colab import userdata  # type: ignore
+
+        os.environ["OPENAI_API_KEY"] = userdata.get("OPENAI_API_KEY")
+        os.environ["ANTHROPIC_API_KEY"] = userdata.get("ANTHROPIC_API_KEY")
+        os.environ["GOOGLE_API_KEY"] = userdata.get("GOOGLE_API_KEY")
+    except ModuleNotFoundError:
+        pass
+else:
+    load_dotenv()
+----
+
+=== Load Sample Files
+
+This chapter uses a plain-text Harry Potter knowledge base file located in the `datasets/text_files/` directory.
+
+When running on Google Colab, download the `datasets` directory from GitHub using the snippet below:
+
+[source,python]
+----
+import sys
+
+IN_COLAB = 'google.colab' in sys.modules
+
+if IN_COLAB:
+    !git clone --no-checkout https://github.com/polzerdo55862/RAG-with-Python-Cookbook.git
+    %cd RAG-with-Python-Cookbook
+    !git sparse-checkout init --cone
+    !git sparse-checkout set datasets
+    !git checkout
+    !cp -r datasets /content/datasets
+    print("✓ Datasets downloaded to /content/datasets")
+else:
+    print("⚠ Running locally. Using ../datasets/ directory")
+----
+
+== Step 1: Text Chunking
+
+Split the document into smaller, overlapping chunks to preserve context across chunk boundaries.
+
+[source,python]
+----
+from pathlib import Path
+import chromadb
+from openai import OpenAI
+
+
+def chunk_text(text, size=1000, overlap=200):
+    chunks, start = [], 0
+    while start < len(text):
+        end = min(start + size, len(text))
+        if end < len(text):
+            bp = text.rfind("\n\n", start, end)
+            if bp == -1:
+                bp = text.rfind(". ", start, end)
+            if bp > start:
+                end = bp + 1
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        start = end - overlap if end < len(text) else end
+    return chunks
+
+
+base_datasets_dir = Path("/content/datasets") if IN_COLAB else Path("../datasets")
+file_path = base_datasets_dir / "text_files" / "harry_potter_knowledge_base.txt"
+if not file_path.exists():
+    file_path = Path("./datasets/text_files/harry_potter_knowledge_base.txt")
+
+text = file_path.read_text(encoding="utf-8")
+chunks = chunk_text(text)
+----
+
+== Step 2: Embed and Store in ChromaDB
+
+Generate embeddings for each chunk using OpenAI's `text-embedding-3-small` model and persist them in a local ChromaDB collection.
+
+[source,python]
+----
+import httpx
+client = OpenAI(http_client=httpx.Client())
+embedding_model = "text-embedding-3-small"
+
+
+def embed_and_store(chunks, db_path, collection_name):
+    chroma = chromadb.PersistentClient(path=str(db_path))
+    collection = chroma.get_or_create_collection(
+        name=collection_name,
+        metadata={"description": "Harry Potter knowledge base"},
+    )
+
+    embeddings = []
+    for i in range(0, len(chunks), 100):
+        batch = chunks[i : i + 100]
+        res = client.embeddings.create(model=embedding_model, input=batch)
+        embeddings.extend([x.embedding for x in res.data])
+
+    collection.add(
+        ids=[f"chunk_{i}" for i in range(len(chunks))],
+        documents=chunks,
+        embeddings=embeddings,
+        metadatas=[{"chunk_index": i} for i in range(len(chunks))],
+    )
+    return collection
+
+
+chroma_db_dir = Path("chroma_db")
+collection = embed_and_store(chunks, chroma_db_dir, "harry_potter_kb")
+----
+
+== Step 3: Test Retrieval
+
+Test that the retrieval system returns the most relevant chunks for a given question.
+
+[source,python]
+----
+def retrieve(question, top_k=3):
+    q_emb = client.embeddings.create(
+        model=embedding_model,
+        input=question,
+    ).data[0].embedding
+
+    res = collection.query(
+        query_embeddings=[q_emb],
+        n_results=top_k,
+        include=["documents"],
+    )
+
+    return res["documents"][0]
+
+
+question = "Why did Uncle Vernon take the family to a hut in the middle of the sea?"
+docs = retrieve(question)
+docs
+----
+
+== Step 4: Test Generation
+
+Feed the retrieved documents together with the question to the LLM to generate a grounded answer.
+
+[source,python]
+----
+def answer(question, docs):
+    context = "\n\n---\n\n".join(docs)
+    prompt = f"""Answer the question using only the context below.
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:"""
+
+    res = client.chat.completions.create(
+        model="gpt-5-mini",
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    return res.choices[0].message.content
+
+
+question = "Why did Uncle Vernon take the family to a hut in the middle of the sea?"
+docs = retrieve(question)
+answer_text = answer(question, docs)
+answer_text
+----
